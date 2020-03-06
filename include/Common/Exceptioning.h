@@ -1,7 +1,7 @@
 #if !defined(__EXCEPTIONING_H__)
 #define __EXCEPTIOING_H__
 
-#include "CommonDefintions.h"
+#include "CommonDefinitions.h"
 
 class CExceptioning final
 {

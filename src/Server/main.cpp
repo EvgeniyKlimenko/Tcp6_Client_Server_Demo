@@ -1,4 +1,4 @@
-#include "CommonDefintions.h"
+#include "CommonDefinitions.h"
 
 int main()
 {

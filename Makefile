@@ -22,7 +22,7 @@ CC:= cl.exe
 LIBTOOL := lib.exe
 LINKTOOL := link.exe
 PLATFORM_SEP := \\
-INC_OPT := /I
+INC_OPT := /I 
 C_FLAGS := /c /DWIN64 /DDEBUG /D_CRT_SECURE_NO_DEPRECATE /ZI /FS /W4 /EHa /GR /MTd /std:c++14
 L_FLAGS := /MTd
 #PRECOMPILED_HEADER := CommonDefinitions.h 
@@ -122,6 +122,7 @@ define link_executable
 endef
 
 define build_source
+	$(info build_source=$(1),$(2))
 	$(if $(OS),
 		$(eval OBJ_FILE = $(subst $(SRC),$(BUILD)$(SEP)$(SYSTEM),$(subst .cpp,$(OBJ_EXT),$(1))))
 		$(eval PDB_FILE = $(subst .obj,.pdb,$(OBJ_FILE)))
@@ -141,12 +142,61 @@ endef
 
 define build
 	$(eval MODULE_SRC_DIR := $(abspath $(SRC)$(SEP)$(1)))
-	$(eval SOURCES := $(strip $(abspath $(wildcard $(MODULE_SRC_DIR)/*.cpp))))
+	$(eval SOURCES := $(strip $(abspath $(wildcard $(MODULE_SRC_DIR)$(SEP)*.cpp))))
 
 	$(foreach sfile,$(SOURCES),$(call build_source,$(sfile),$(1)))
 endef
 
+define traverse4
+	$(info traverse4:args=$(1),$(2),$(3),$(4))
+	$(eval PATTERN := $(3))
+	$(eval CURRENT := $(1)$(SEP)$(2))
+	$(eval CHILDREN := $(strip $(notdir $(wildcard $(CURRENT)$(SEP)*))))
+	$(eval SUBDIRS := $(filter-out %$(PATTERN),$(CHILDREN)))
+	$(eval FILES := $(addprefix $(2)$(SEP),$(filter %$(PATTERN),$(CHILDREN))))
+	retval = $(FILES)
+	$(4) += $$(retval)
+	$(foreach dir,$(SUBDIRS),$(call traverse4,$(1),$(2)$(SEP)$(dir),$(PATTERN),$(4)))
+endef
+
+define traverse5
+	$(info traverse5:args=$(1))
+
+	$(eval sources :=)
+	$(eval $(call traverse4,$(abspath $(SRC)$(SEP)),$(1),.cpp,sources))
+	$(info sources=$(sources))
+
+	$(eval headers :=)
+	$(eval $(call traverse4,$(abspath $(INCLUDE)$(SEP)),$(1),.h,headers))
+	$(info headers=$(headers))
+endef
+
+define get_files
+	$(info get_files:args=$(1),$(2),$(3),$(4))
+	$(eval PATTERN := $(3))
+	$(eval CURRENT := $(1)$(SEP)$(2))
+	$(eval CHILDREN := $(strip $(notdir $(wildcard $(CURRENT)$(SEP)*))))
+	$(eval SUBDIRS := $(filter-out %$(PATTERN),$(CHILDREN)))
+	$(eval FILES := $(addprefix $(2)$(SEP),$(filter %$(PATTERN),$(CHILDREN))))
+	retval = $(FILES)
+	$(4) += $$(retval)
+	$(foreach dir,$(SUBDIRS),$(call get_files,$(1),$(2)$(SEP)$(dir),$(PATTERN),$(4)))
+endef
+
+define build2
+	$(info build2:args=$(1))
+
+	$(eval SOURCES :=)
+	$(eval $(call get_files,$(abspath $(SRC)$(SEP)),$(1),.cpp,SOURCES))
+	$(info sources=$(SOURCES))
+
+	$(foreach sfile,$(SOURCES),$(call build_source,$(abspath $(SRC)$(SEP)$(sfile)),$(1)))
+endef
+
 all:
+	$(call create_directories,$(COMMON),$(LIB))
+	$(call create_directories,$(SERVER),$(BIN))
+	$(call create_directories,$(CLIENT),$(BIN))
 	$(call create_directories,$(COMMON),$(LIB))
 	$(call create_directories,$(SERVER),$(BIN))
 	$(call create_directories,$(CLIENT),$(BIN))

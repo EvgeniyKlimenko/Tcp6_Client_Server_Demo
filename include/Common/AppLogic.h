@@ -1,7 +1,7 @@
 #if !defined(__APP_LOGIC_H__)
 #define __APP_LOGIC_H__
 
-#include "CommonDefintions.h"
+#include "CommonDefinitions.h"
 #include "Exceptioning.h"
 
 template <class Derived> class AppLogic

@@ -1,7 +1,7 @@
 #if !defined(__EXCEPTION_H__)
 #define __EXCEPTION_H__
 
-#include "CommonDefintions.h"
+#include "CommonDefinitions.h"
 
 #if defined(__WIN64)
 
