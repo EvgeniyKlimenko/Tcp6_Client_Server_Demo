@@ -3,6 +3,8 @@
 
 #include "CommonDefintions.h"
 
+#if defined(__WIN64)
+
 class CWindowsException final : public std::exception
 {
 public:
@@ -53,5 +55,21 @@ private:
 	PVOID m_addr;
 	std::string m_description;
 };
+
+#elif defined(__linux__)
+
+class SystemException final : public std::exception
+{
+    int m_err;
+public:
+    SystemException(int err);
+    SystemException(const SystemException& other);
+    SystemException& operator= (const SystemException& other);
+    virtual ~SystemException () = default;
+    
+    const char* what()  const noexcept override;
+};
+
+#endif // __WIN64
 
 #endif // __EXCEPTION_H__

@@ -1,5 +1,7 @@
 #include "Exception.h"
 
+#if defined (__WIN64)
+
 CWindowsException::CWindowsException(const CWindowsException& other)
 {
 	m_code = other.m_code;
@@ -99,3 +101,29 @@ void CSehException::ResolveDescription()
 	stm << "SEH error " << m_code << " at address " << m_addr << "." <<std::endl;
 	m_description = stm.str();
 }
+
+#elif defined (__linux__)
+
+SystemException::SystemException(int err) : m_err(err) {}
+    
+SystemException::SystemException(const SystemException& other)
+{
+	m_err = other.m_err;
+}
+
+SystemException& SystemException::operator= (const SystemException& other)
+{
+	if (this != &other)
+	{
+		m_err = other.m_err;
+	}
+
+	return *this;
+}
+
+const char* SystemException::what() const noexcept
+{
+	return strerror(m_err);
+}
+
+#endif //_WIN64

@@ -4,6 +4,7 @@ LIB := lib
 SRC	:= src
 INCLUDE	:= include
 SEP := /
+RM :=  rmdir /s /q
 
 COMMON := Common
 CLIENT := Client
@@ -16,12 +17,15 @@ LIB_EXT := .lib
 OBJ_EXT := .obj
 PROG_DB_EXT := .pdb
 ASM_EXT := .asm
+LIB_NAME_PREFIX :=
 CC:= cl.exe
 LIBTOOL := lib.exe
 LINKTOOL := link.exe
 PLATFORM_SEP := \\
+INC_OPT := /I
+C_FLAGS := /c /DWIN64 /DDEBUG /D_CRT_SECURE_NO_DEPRECATE /ZI /FS /W4 /EHa /GR /MTd /std:c++14
 L_FLAGS := /MTd
-PRECOMPILED_HEADER := CommonDefinitions.h 
+#PRECOMPILED_HEADER := CommonDefinitions.h 
 MSVC_HEADERS_PATH := "C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/VC/Tools/MSVC/14.24.28314/include"
 SHARED_HEADERS_PATH := "C:/Program Files (x86)/Windows Kits/10/Include/10.0.18362.0/shared"
 CRT_HEADERS_PATH := "C:/Program Files (x86)/Windows Kits/10/Include/10.0.18362.0/ucrt"
@@ -34,10 +38,24 @@ SDK_LIBS_PATH := "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.18362.0/um/x64
 BOOST_LIBS_PATH := "C:/boost/lib"
 LIB_DIRS := /LIBPATH:$(MSVC_LIBS_PATH) /LIBPATH:$(CRT_LIBS_PATH) /LIBPATH:$(SDK_LIBS_PATH) #/LIBPATH:$(BOOST_LIBS_PATH)
 L_OPTS := /link /machine:X64 $(LIB_DIRS)
-OUT_FILE := /Fe:
-RM :=  rmdir /s /q
+OUT_FILE := /OUT:
+LIB_OUT_FILE := $(OUT_FILE)
 MKDIR := md
-SLEEP := timeout
+else
+SYSTEM := Linux
+PLATFORM_SEP := $(SEP)
+BIN_EXT :=
+LIB_EXT := .a
+OBJ_EXT := .o
+LIB_NAME_PREFIX := lib
+CC:= g++
+LIBTOOL := ar
+INC_OPT := -I
+C_FLAGS := -std=c++14 -Wall -Wextra -g
+L_FLAGS := -pthread
+OUT_FILE := -o:
+LIB_OUT_FILE :=
+MKDIR := mkdir -p
 endif
 
 define create_directories
@@ -67,11 +85,22 @@ define remove_directories
 endef
 
 define link_library
-	$(eval MODULE_PATH := $(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(1)$(SEP)$(1)$(LIB_EXT)))
+	$(eval MODULE_PATH := $(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(1)$(SEP)$(LIB_NAME_PREFIX)$(1)$(LIB_EXT)))
 	$(eval BUILD_PATH := $(abspath $(BUILD)$(SEP)$(SYSTEM)$(SEP)$(1)))
 	$(eval L_OPTS := /MACHINE:x64)
+	$(eval OBJECTS := $(wildcard $(BUILD_PATH)$(SEP)*$(OBJ_EXT)))
+	$(if $(OS),
+		$(eval L_OPTS := /MACHINE:x64),
+		$(eval L_OPTS := -rc)
+	)
+	$(if $(OS),
+		$(eval ADDITIONAL_STEP :=),
+		$(eval ADDITIONAL_STEP := ranlib $(MODULE_PATH))
+	)
+	$(eval LINKING := $(LIBTOOL) $(L_OPTS) $(LIB_OUT_FILE)$(MODULE_PATH) $(OBJECTS))
 
-	$(LIBTOOL) $(L_OPTS) $(wildcard $(BUILD_PATH)$(SEP)*$(OBJ_EXT)) /OUT:$(MODULE_PATH)
+	$(LINKING)
+	$(ADDITIONAL_STEP)
 endef
 
 define link_executable
@@ -85,13 +114,18 @@ define link_executable
 endef
 
 define build_source
-	$(eval OBJ_FILE = $(subst $(SRC),$(BUILD)$(SEP)$(SYSTEM),$(subst .cpp,$(OBJ_EXT),$(1))))
-	$(eval PDB_FILE = $(subst .obj,.pdb,$(OBJ_FILE)))
-	$(eval ASM_FILE = $(subst .obj,.asm,$(OBJ_FILE)))
+	$(if $(OS),
+		$(eval OBJ_FILE = $(subst $(SRC),$(BUILD)$(SEP)$(SYSTEM),$(subst .cpp,$(OBJ_EXT),$(1))))
+		$(eval PDB_FILE = $(subst .obj,.pdb,$(OBJ_FILE)))
+		$(eval ASM_FILE = $(subst .obj,.asm,$(OBJ_FILE)))
+		$(eval SRC_C_FLAGS := /Fo$(OBJ_FILE) /Fa$(ASM_FILE) /Fd$(PDB_FILE)),
+		$(eval OBJ_FILE = $(subst $(SRC),$(BUILD)$(SEP)$(SYSTEM),$(subst .cpp,$(OBJ_EXT),$(1))))
+		$(eval SRC_C_FLAGS := -c -o $(OBJ_FILE))
+	)
+
 	$(eval MODULE_INC_DIR := $(abspath $(INCLUDE)$(SEP)$(2)))
-	$(eval INCLUDES := $(INCLUDE_DIRS)/I $(MODULE_INC_DIR))
-	$(eval C_FLAGS := /c /DWIN64 /DDEBUG /D_CRT_SECURE_NO_DEPRECATE /ZI /FS /W4 /EHa /GR /Fo$(OBJ_FILE) /Fa$(ASM_FILE) /Fd$(PDB_FILE) /MTd /std:c++14)
-	$(eval COMPILING := $(CC) $(C_FLAGS) $(INCLUDES) $(1))
+	$(eval INCLUDES := $(INCLUDE_DIRS) $(INC_OPT)$(MODULE_INC_DIR))
+	$(eval COMPILING := $(CC) $(C_FLAGS) $(SRC_C_FLAGS) $(INCLUDES) $(1))
 
 	$(COMPILING)
 endef
@@ -109,8 +143,6 @@ all:
 	$(call create_directories,$(CLIENT),$(BIN))
 	$(call build,$(COMMON))
 	$(call link_library,$(COMMON))
-	$(call build,$(SERVER))
-	$(call link_executable,$(SERVER))
 
 clean:
 	$(call remove_directories)
