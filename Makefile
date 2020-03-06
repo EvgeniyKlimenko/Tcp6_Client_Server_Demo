@@ -50,10 +50,11 @@ OBJ_EXT := .o
 LIB_NAME_PREFIX := lib
 CC:= g++
 LIBTOOL := ar
+LINKTOOL := $(CC)
 INC_OPT := -I
 C_FLAGS := -std=c++14 -Wall -Wextra -g
 L_FLAGS := -pthread
-OUT_FILE := -o:
+OUT_FILE := -o  
 LIB_OUT_FILE :=
 MKDIR := mkdir -p
 endif
@@ -106,9 +107,16 @@ endef
 define link_executable
 	$(eval MODULE_PATH := $(abspath $(BIN)$(SEP)$(SYSTEM)$(SEP)$(1)$(SEP)$(1)$(BIN_EXT)))
 	$(eval BUILD_PATH := $(abspath $(BUILD)$(SEP)$(SYSTEM)$(SEP)$(1)))
-	$(eval L_OPTS := /MACHINE:x64 /SUBSYSTEM:CONSOLE /OPT:NOICF /OPT:NOREF $(LIB_DIRS) /LIBPATH:$(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(COMMON)))
 	$(eval OBJECTS := $(wildcard $(BUILD_PATH)$(SEP)*$(OBJ_EXT)))
-	$(eval LINKING := $(LINKTOOL) $(L_OPTS) $(OBJECTS) $(COMMON)$(LIB_EXT) /OUT:$(MODULE_PATH))
+	$(if $(OS),
+		$(eval L_OPTS := /MACHINE:x64 /SUBSYSTEM:CONSOLE /OPT:NOICF /OPT:NOREF $(LIB_DIRS) /LIBPATH:$(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(COMMON)) $(COMMON)$(LIB_EXT)),
+		$(eval L_OPTS := -L$(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(COMMON)) -l$(COMMON))
+	)
+	$(if $(OS),
+		$(eval ADDITIONAL_STEP :=),
+		$(eval ADDITIONAL_STEP := ranlib $(MODULE_PATH))
+	)
+	$(eval LINKING := $(LINKTOOL) $(L_OPTS) $(OBJECTS) $(OUT_FILE)$(MODULE_PATH))
 
 	$(LINKING)
 endef
@@ -123,8 +131,9 @@ define build_source
 		$(eval SRC_C_FLAGS := -c -o $(OBJ_FILE))
 	)
 
+	$(eval COMMON_INC_DIR := $(abspath $(INCLUDE)$(SEP)$(COMMON)))
 	$(eval MODULE_INC_DIR := $(abspath $(INCLUDE)$(SEP)$(2)))
-	$(eval INCLUDES := $(INCLUDE_DIRS) $(INC_OPT)$(MODULE_INC_DIR))
+	$(eval INCLUDES := $(INCLUDE_DIRS) $(INC_OPT)$(COMMON_INC_DIR) $(INC_OPT)$(MODULE_INC_DIR))
 	$(eval COMPILING := $(CC) $(C_FLAGS) $(SRC_C_FLAGS) $(INCLUDES) $(1))
 
 	$(COMPILING)
@@ -143,6 +152,10 @@ all:
 	$(call create_directories,$(CLIENT),$(BIN))
 	$(call build,$(COMMON))
 	$(call link_library,$(COMMON))
+	$(call build,$(SERVER))
+	$(call link_executable,$(SERVER))
+	$(call build,$(CLIENT))
+	$(call link_executable,$(CLIENT))
 
 clean:
 	$(call remove_directories)
