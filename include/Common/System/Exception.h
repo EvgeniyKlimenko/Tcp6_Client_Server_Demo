@@ -56,7 +56,7 @@ private:
 	std::string m_description;
 };
 
-#elif defined(__linux__)
+#endif // __WIN64
 
 class SystemException final : public std::exception
 {
@@ -69,7 +69,5 @@ public:
     
     const char* what()  const noexcept override;
 };
-
-#endif // __WIN64
 
 #endif // __EXCEPTION_H__

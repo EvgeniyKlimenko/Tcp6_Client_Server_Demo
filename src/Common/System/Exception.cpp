@@ -102,7 +102,7 @@ void CSehException::ResolveDescription()
 	m_description = stm.str();
 }
 
-#elif defined (__linux__)
+#endif //_WIN64
 
 SystemException::SystemException(int err) : m_err(err) {}
     
@@ -125,5 +125,3 @@ const char* SystemException::what() const noexcept
 {
 	return strerror(m_err);
 }
-
-#endif //_WIN64
