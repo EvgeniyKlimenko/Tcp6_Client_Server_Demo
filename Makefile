@@ -37,7 +37,6 @@ CRT_LIBS_PATH := "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.18362.0/ucrt/x
 SDK_LIBS_PATH := "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.18362.0/um/x64"
 BOOST_LIBS_PATH := "C:/boost/lib"
 LIB_DIRS := /LIBPATH:$(MSVC_LIBS_PATH) /LIBPATH:$(CRT_LIBS_PATH) /LIBPATH:$(SDK_LIBS_PATH) #/LIBPATH:$(BOOST_LIBS_PATH)
-L_OPTS := /link /machine:X64 $(LIB_DIRS)
 OUT_FILE := /OUT:
 LIB_OUT_FILE := $(OUT_FILE)
 MKDIR := md
@@ -107,7 +106,7 @@ define link_library
 	$(eval OBJECTS :=)
 	$(eval OBJECT_PATHS :=)
 	$(eval MODULE_PATH := $(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(1)$(SEP)$(LIB_NAME_PREFIX)$(1)$(LIB_EXT)))
-	$(eval L_OPTS := /MACHINE:x64)
+	$(eval L_OPTS := /MACHINE:x64 /DEBUG:FULL)
 	$(eval $(call get_files,$(abspath $(BUILD)$(SEP)$(SYSTEM)$(SEP)),$(1),$(OBJ_EXT),OBJECTS))
 	$(foreach ofile,$(OBJECTS),$(eval $(call add_path_prefix,$(abspath $(BUILD)$(SEP)$(SYSTEM)$(SEP)),$(ofile),OBJECT_PATHS)))
 	$(if $(OS),
@@ -132,7 +131,7 @@ define link_executable
 	$(eval $(foreach ofile,$(OBJECTS),$(call add_path_prefix,$(abspath $(BUILD)$(SEP)$(SYSTEM)$(SEP)),$(ofile),OBJECT_PATHS)))
 	
 	$(if $(OS),
-		$(eval L_OPTS := /MACHINE:x64 /SUBSYSTEM:CONSOLE /OPT:NOICF /OPT:NOREF $(LIB_DIRS) /LIBPATH:$(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(COMMON)) $(COMMON)$(LIB_EXT)),
+		$(eval L_OPTS := /MACHINE:x64 /DEBUG:FULL /SUBSYSTEM:CONSOLE /OPT:NOICF /OPT:NOREF $(LIB_DIRS) /LIBPATH:$(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(COMMON)) $(COMMON)$(LIB_EXT)),
 		$(eval L_OPTS := -L$(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(COMMON)) -l$(COMMON))
 	)
 	$(if $(OS),
