@@ -18,7 +18,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/bin/Linux/Server/Server",
-            "args": [],
+            "args": ["-p3456"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

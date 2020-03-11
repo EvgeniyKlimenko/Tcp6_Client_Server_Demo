@@ -23,20 +23,20 @@ LIBTOOL := lib.exe
 LINKTOOL := link.exe
 PLATFORM_SEP := \\
 INC_OPT := /I 
-C_FLAGS := /c /DWIN64 /DDEBUG /D_CRT_SECURE_NO_DEPRECATE /ZI /FS /W4 /EHa /GR /MTd /std:c++14
+C_FLAGS := /c /DWIN64 /D_WIN64 /DUNICODE /D_UNICODE /DDEBUG /D_DEBUG /D_CRT_SECURE_NO_DEPRECATE /ZI /FS /W4 /EHa /GR /MTd /std:c++14
 L_FLAGS := /MTd
 #PRECOMPILED_HEADER := CommonDefinitions.h 
 MSVC_HEADERS_PATH := "C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/VC/Tools/MSVC/14.24.28314/include"
 SHARED_HEADERS_PATH := "C:/Program Files (x86)/Windows Kits/10/Include/10.0.18362.0/shared"
 CRT_HEADERS_PATH := "C:/Program Files (x86)/Windows Kits/10/Include/10.0.18362.0/ucrt"
 SDK_HEADERS_PATH := "C:/Program Files (x86)/Windows Kits/10/Include/10.0.18362.0/um"
-BOOST_HEADERS_PATH := "C:/boost/include/boost-1_60"
-INCLUDE_DIRS := /I $(MSVC_HEADERS_PATH) /I $(SHARED_HEADERS_PATH) /I $(CRT_HEADERS_PATH) /I $(SDK_HEADERS_PATH) #/I $(BOOST_HEADERS_PATH)
+BOOST_HEADERS_PATH := "C:/boost/boost_1_60_0/include/boost-1_60"
+INCLUDE_DIRS := /I $(MSVC_HEADERS_PATH) /I $(SHARED_HEADERS_PATH) /I $(CRT_HEADERS_PATH) /I $(SDK_HEADERS_PATH) /I $(BOOST_HEADERS_PATH)
 MSVC_LIBS_PATH := "C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/VC/Tools/MSVC/14.24.28314/lib/x64"
 CRT_LIBS_PATH := "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.18362.0/ucrt/x64"
 SDK_LIBS_PATH := "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.18362.0/um/x64"
-BOOST_LIBS_PATH := "C:/boost/lib"
-LIB_DIRS := /LIBPATH:$(MSVC_LIBS_PATH) /LIBPATH:$(CRT_LIBS_PATH) /LIBPATH:$(SDK_LIBS_PATH) #/LIBPATH:$(BOOST_LIBS_PATH)
+BOOST_LIBS_PATH := "C:/boost/boost_1_60_0/lib"
+LIB_DIRS := /LIBPATH:$(MSVC_LIBS_PATH) /LIBPATH:$(CRT_LIBS_PATH) /LIBPATH:$(SDK_LIBS_PATH) /LIBPATH:$(BOOST_LIBS_PATH)
 OUT_FILE := /OUT:
 LIB_OUT_FILE := $(OUT_FILE)
 MKDIR := md
@@ -128,17 +128,17 @@ define link_executable
 	$(eval OBJECT_PATHS :=)
 	$(eval MODULE_PATH := $(abspath $(BIN)$(SEP)$(SYSTEM)$(SEP)$(1)$(SEP)$(1)$(BIN_EXT)))
 	$(eval $(call get_files,$(abspath $(BUILD)$(SEP)$(SYSTEM)$(SEP)),$(1),$(OBJ_EXT),OBJECTS))
-	$(eval $(foreach ofile,$(OBJECTS),$(call add_path_prefix,$(abspath $(BUILD)$(SEP)$(SYSTEM)$(SEP)),$(ofile),OBJECT_PATHS)))
+	$(foreach ofile,$(OBJECTS),$(eval $(call add_path_prefix,$(abspath $(BUILD)$(SEP)$(SYSTEM)$(SEP)),$(ofile),OBJECT_PATHS)))
 	
 	$(if $(OS),
-		$(eval L_OPTS := /MACHINE:x64 /DEBUG:FULL /SUBSYSTEM:CONSOLE /OPT:NOICF /OPT:NOREF $(LIB_DIRS) /LIBPATH:$(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(COMMON)) $(COMMON)$(LIB_EXT)),
-		$(eval L_OPTS := -L$(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(COMMON)) -l$(COMMON))
+		$(eval L_OPTS := /MACHINE:x64 /DEBUG:FULL /SUBSYSTEM:CONSOLE /OPT:NOICF /OPT:NOREF $(LIB_DIRS) /LIBPATH:$(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(COMMON)) $(COMMON)$(LIB_EXT) libboost_system-vc164-mt-gd-1_60$(LIB_EXT)),
+		$(eval L_OPTS := -L$(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(COMMON)) -l$(COMMON) -lboost_system -lboost_program_options)
 	)
 	$(if $(OS),
 		$(eval ADDITIONAL_STEP :=),
 		$(eval ADDITIONAL_STEP := ranlib $(MODULE_PATH))
 	)
-	$(eval LINKING := $(LINKTOOL) $(L_OPTS) $(OBJECT_PATHS) $(OUT_FILE)$(MODULE_PATH))
+	$(eval LINKING := $(LINKTOOL) $(OBJECT_PATHS) $(L_OPTS) $(OUT_FILE)$(MODULE_PATH))
 
 	$(LINKING)
 endef

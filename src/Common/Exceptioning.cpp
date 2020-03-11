@@ -1,17 +1,17 @@
 #include "Exceptioning.h"
 
-bool CExceptioning::Occurred() const
+bool Exceptioning::Occurred() const
 {
 	return !m_exceptions.empty();
 }
 
-void CExceptioning::Append(const std::exception_ptr& entry)
+void Exceptioning::Append(const boost::exception_ptr& entry)
 {
-	std::lock_guard<std::mutex> lock(m_mutex);
+	boost::lock_guard<boost::mutex> lock(m_mutex);
 	m_exceptions.push_back(entry);
 }
 
-void CExceptioning::Show()
+void Exceptioning::Show()
 {
 	for (auto& entry : m_exceptions)
 	{
@@ -19,7 +19,7 @@ void CExceptioning::Show()
 		{
 			if (entry != nullptr)
 			{
-				std::rethrow_exception(entry);
+				boost::rethrow_exception(entry);
 			}
 		}
 		catch (std::exception& e)

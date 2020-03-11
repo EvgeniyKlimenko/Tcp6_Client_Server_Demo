@@ -3,7 +3,7 @@
 
 #include "CommonDefinitions.h"
 
-#if defined(__WIN64)
+#if defined(_WIN64)
 
 class CWindowsException final : public std::exception
 {
@@ -56,7 +56,7 @@ private:
 	std::string m_description;
 };
 
-#endif // __WIN64
+#endif // _WIN64
 
 class SystemException final : public std::exception
 {

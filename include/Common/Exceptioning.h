@@ -3,16 +3,16 @@
 
 #include "CommonDefinitions.h"
 
-class CExceptioning final
+class Exceptioning final
 {
 public:
 	bool Occurred() const;
-	void Append(const std::exception_ptr& entry);
+	void Append(const boost::exception_ptr& entry);
 	void Show();
 
 private:
-	std::mutex m_mutex;
-	std::vector<std::exception_ptr> m_exceptions;
+	boost::mutex m_mutex;
+	std::vector<boost::exception_ptr> m_exceptions;
 };
 
 #endif // __EXCEPTIONING_H__

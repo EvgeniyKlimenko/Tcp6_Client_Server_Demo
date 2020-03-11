@@ -1,6 +1,6 @@
 #include "Exception.h"
 
-#if defined (__WIN64)
+#if defined (_WIN64)
 
 CWindowsException::CWindowsException(const CWindowsException& other)
 {
