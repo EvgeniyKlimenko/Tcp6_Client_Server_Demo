@@ -22,15 +22,8 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    if(varMap.count("port"))
-    {
-        short port = varMap["port"].as<short>();
-        RUN_APP(Server, port)
-    }
-    else
-    {
-        RUN_APP(Server, DEFAULT_PORT);
-    }
+    short port = (varMap.count("port")) ? varMap["port"].as<short>() : DEFAULT_PORT;
+    RUN_APP(AsioServer, port);
 
     return 0;
 }

@@ -11,6 +11,10 @@
 #elif defined ( _WIN64 )
 
 #pragma warning(disable:4244)
+#pragma warning(disable:4834)
+
+#define WIN32_LEAN_AND_MEAN
+#define BOOST_ASIO_WINDOWS
 
 #include <windows.h>
 #include <tchar.h>
@@ -42,6 +46,8 @@
 #include <boost/function.hpp>
 #include <boost/smart_ptr.hpp>
 #include <boost/program_options.hpp>
+#include <boost/asio.hpp>
+#include <boost/enable_shared_from_this.hpp>
 
 #if defined ( _WIN64 )
 

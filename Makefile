@@ -30,12 +30,12 @@ MSVC_HEADERS_PATH := "C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildT
 SHARED_HEADERS_PATH := "C:/Program Files (x86)/Windows Kits/10/Include/10.0.18362.0/shared"
 CRT_HEADERS_PATH := "C:/Program Files (x86)/Windows Kits/10/Include/10.0.18362.0/ucrt"
 SDK_HEADERS_PATH := "C:/Program Files (x86)/Windows Kits/10/Include/10.0.18362.0/um"
-BOOST_HEADERS_PATH := "C:/boost/boost_1_60_0/include/boost-1_60"
+BOOST_HEADERS_PATH := "C:/boost/boost_1_72_0"
 INCLUDE_DIRS := /I $(MSVC_HEADERS_PATH) /I $(SHARED_HEADERS_PATH) /I $(CRT_HEADERS_PATH) /I $(SDK_HEADERS_PATH) /I $(BOOST_HEADERS_PATH)
 MSVC_LIBS_PATH := "C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/VC/Tools/MSVC/14.24.28314/lib/x64"
 CRT_LIBS_PATH := "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.18362.0/ucrt/x64"
 SDK_LIBS_PATH := "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.18362.0/um/x64"
-BOOST_LIBS_PATH := "C:/boost/boost_1_60_0/lib"
+BOOST_LIBS_PATH := "C:/boost/boost_1_72_0/lib64-msvc-14.2"
 LIB_DIRS := /LIBPATH:$(MSVC_LIBS_PATH) /LIBPATH:$(CRT_LIBS_PATH) /LIBPATH:$(SDK_LIBS_PATH) /LIBPATH:$(BOOST_LIBS_PATH)
 OUT_FILE := /OUT:
 LIB_OUT_FILE := $(OUT_FILE)
@@ -131,8 +131,8 @@ define link_executable
 	$(foreach ofile,$(OBJECTS),$(eval $(call add_path_prefix,$(abspath $(BUILD)$(SEP)$(SYSTEM)$(SEP)),$(ofile),OBJECT_PATHS)))
 	
 	$(if $(OS),
-		$(eval L_OPTS := /MACHINE:x64 /DEBUG:FULL /SUBSYSTEM:CONSOLE /OPT:NOICF /OPT:NOREF $(LIB_DIRS) /LIBPATH:$(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(COMMON)) $(COMMON)$(LIB_EXT) libboost_system-vc164-mt-gd-1_60$(LIB_EXT)),
-		$(eval L_OPTS := -L$(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(COMMON)) -l$(COMMON) -lboost_system -lboost_program_options)
+		$(eval L_OPTS := /MACHINE:x64 /DEBUG:FULL /SUBSYSTEM:CONSOLE /OPT:NOICF /OPT:NOREF $(LIB_DIRS) /LIBPATH:$(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(COMMON)) $(COMMON)$(LIB_EXT) boost_system-vc142-mt-gd-x64-1_72$(LIB_EXT)),
+		$(eval L_OPTS := -L$(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(COMMON)) -l$(COMMON) -lboost_system -lboost_thread -lboost_program_options)
 	)
 	$(if $(OS),
 		$(eval ADDITIONAL_STEP :=),

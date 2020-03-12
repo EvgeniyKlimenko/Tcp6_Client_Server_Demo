@@ -2,7 +2,7 @@
 
 #if defined (_WIN64)
 
-WindowsTerminationLogic* WindowsTerminationLogic::s_self;
+CWindowsTerminationLogic* CWindowsTerminationLogic::s_self;
 
 #endif // _WIN64
 

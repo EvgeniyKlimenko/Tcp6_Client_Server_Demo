@@ -54,9 +54,9 @@ using TerminationLogic = LinuxTerminationLogic;
 
 #elif defined (_WIN64)
 
-class WindowsTerminationLogic final
+class CWindowsTerminationLogic final
 {
-    static WindowsTerminationLogic* s_self;
+    static CWindowsTerminationLogic* s_self;
     TerminationCallback_t m_callback;
 
     static BOOL __stdcall ConsoleCtrlCallback(ULONG code)
@@ -67,17 +67,17 @@ class WindowsTerminationLogic final
     }
 
 public:
-    WindowsTerminationLogic(TerminationCallback_t&& callback)
+    CWindowsTerminationLogic(TerminationCallback_t&& callback)
     : m_callback(callback)
     {
-        if (!SetConsoleCtrlHandler(&WindowsTerminationLogic::ConsoleCtrlCallback, TRUE))
-            throw WindowsException(GetLastError());
+        if (!SetConsoleCtrlHandler(&CWindowsTerminationLogic::ConsoleCtrlCallback, TRUE))
+            throw CWindowsException(GetLastError());
 
-        WindowsTerminationLogic::s_self = this;
+        CWindowsTerminationLogic::s_self = this;
     }
 };
 
-using TerminationLogic = WindowsTerminationLogic;
+using TerminationLogic = CWindowsTerminationLogic;
 
 #else
 
