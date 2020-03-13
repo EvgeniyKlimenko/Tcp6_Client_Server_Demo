@@ -77,6 +77,12 @@
         "string_view": "cpp",
         "fstream": "cpp",
         "cinttypes": "cpp",
-        "*.ipp": "cpp"
+        "*.ipp": "cpp",
+        "codecvt": "cpp",
+        "csignal": "cpp",
+        "future": "cpp",
+        "numeric": "cpp",
+        "shared_mutex": "cpp",
+        "variant": "cpp"
     }
 }
