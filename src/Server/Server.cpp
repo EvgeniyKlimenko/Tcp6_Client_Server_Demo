@@ -22,10 +22,10 @@ void AsioServer::Connection::Start()
     }
 
     // Start asynchronous reading so we're waiting messages from client.
-    m_sock.async_read_some(boost::asio::buffer(m_data, BUF_SIZE), m_readCallback);
+    m_sock.async_read_some(boost::asio::buffer(m_data.prepare(BUF_SIZE)), m_readCallback);
 }
 
-void AsioServer::Connection::OnReadComplete(const boost::system::error_code& err, size_t bytesRead)
+void AsioServer::Connection::OnReadComplete(const boost::system::error_code& err, size_t)
 {
     if(err)
     {
@@ -35,11 +35,13 @@ void AsioServer::Connection::OnReadComplete(const boost::system::error_code& err
     else
     {
         // Got message from a client.
-        std::string dataReceived(m_data, bytesRead);
+        std::istream istm(&m_data);
+        std::string dataReceived;
+        istm >> dataReceived;
         std::cout << "Data received: " << dataReceived << std::endl;
 
         // Write this message back to the client.
-        m_sock.async_write_some(boost::asio::buffer(m_data, BUF_SIZE), m_writeCallback);
+        m_sock.async_write_some(boost::asio::buffer(m_data.prepare(BUF_SIZE)), m_writeCallback);
     }
     
 }
@@ -56,7 +58,7 @@ void AsioServer::Connection::OnWriteComplete(const boost::system::error_code& er
         std::cout << "Echo message has been sent." << std::endl;
 
         // After sending echo to the client we're waiting for more messages.
-        m_sock.async_read_some(boost::asio::buffer(m_data, BUF_SIZE), m_readCallback);
+        m_sock.async_read_some(boost::asio::buffer(m_data.prepare(BUF_SIZE)), m_readCallback);
     }
 }
 

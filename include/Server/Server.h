@@ -9,16 +9,13 @@ class Connection : public boost::enable_shared_from_this<Connection>
 {
     static const size_t BUF_SIZE = 1024;
     boost::asio::ip::tcp::socket m_sock;
-    char m_data[BUF_SIZE];
+    boost::asio::streambuf m_data;
     boost::function<void(const boost::system::error_code& err, size_t bytesRead)> m_readCallback;
     boost::function<void(const boost::system::error_code& err, size_t bytesRead)> m_writeCallback;
 
     Connection(boost::asio::io_service& ioSrv)
     : m_sock(ioSrv)
-    {
-        // Preallocate 1024 characters in the socket buffer.
-        memset(m_data, 0, BUF_SIZE);
-    }
+    {}
 
 public:
     using Pointer_t = boost::shared_ptr<Connection>;
