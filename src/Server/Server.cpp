@@ -3,6 +3,13 @@
 
 void AsioServer::Connection::Start()
 {
+    auto self = m_sock.local_endpoint();
+    auto peer = m_sock.remote_endpoint();
+    std::cout << "Server " << self.address().to_string() << "(" 
+        << self.port() << ") accepted client " 
+        << peer.address().to_string() 
+        << "(" << peer.port() << ")." << std::endl;
+
     if(!m_readCallback)
     {
         m_readCallback = boost::bind(
@@ -82,10 +89,11 @@ void AsioServer::OnRun()
 
 void AsioServer::OnStop()
 {
-    std::cout << "Stopping server..." << std::endl;
+    std::cout << "Finishing server..." << std::endl;
     m_ioSvc.stop();
     m_acceptor.close();
     m_threadPool.join_all();
+    std::cout << "Server finished." << std::endl;
 }
 
 void AsioServer::ThreadCallback()
