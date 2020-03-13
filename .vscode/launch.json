@@ -51,7 +51,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/bin/Linux/Client/Client",
-            "args": [],
+            "args": ["-a::1","-p3456"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
