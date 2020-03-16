@@ -63,6 +63,8 @@ class CWindowsTerminationLogic final
     {
         std::cerr << "Console control callback for code " << code << " raised." << std::endl;
         s_self->m_callback();
+        if (code ==  CTRL_C_EVENT || code ==  CTRL_BREAK_EVENT)
+            ExitProcess(0);
         return TRUE;
     }
 
