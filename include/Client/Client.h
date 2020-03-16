@@ -3,7 +3,7 @@
 
 #include "AppLogic.h"
 
-class AsioClient final : public AppLogic<AsioClient>
+class AsioClient final : public AppLogic<AsioClient, false>
 {
 public:
     AsioClient(const char* addr, uint16_t port);

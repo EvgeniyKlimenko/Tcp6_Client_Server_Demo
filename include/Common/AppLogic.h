@@ -3,9 +3,15 @@
 
 #include "CommonDefinitions.h"
 #include "Exceptioning.h"
+#include "System/SingleInstance.h"
 #include "System/TerminationLogic.h"
 
-template <typename Derived> class AppLogic
+template 
+<
+	typename Derived,
+	bool SingleInstanceFlag, 
+	typename TerminationLogicType = DefaultTerminationLogic
+> class AppLogic
 {
 public:
 	template <typename... Anything>
@@ -45,12 +51,15 @@ protected:
 	CRTP_SELF(Derived)
 
 	Exceptioning m_exceptioning;
-	TerminationLogic m_terminationLogic;
+	SingleInstance<SingleInstanceFlag> m_singleInst;
+	TerminationLogicType m_terminationLogic;
 };
 
 #define RUN_APP(AppType, ...) 							\
+	try {												\
 	using AppType_ptr = boost::scoped_ptr< AppType >;	\
 	AppType_ptr app(new AppType( __VA_ARGS__ ));		\
-    app->Run();
+    app->Run(); } catch (std::exception& ex) {			\
+	std::cerr << ex.what() << std::endl; }
 
 #endif // __APP_LOGIC_H__

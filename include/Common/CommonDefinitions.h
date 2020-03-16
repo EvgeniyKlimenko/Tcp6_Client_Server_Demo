@@ -4,9 +4,14 @@
 #if defined ( __linux__ )
 
 #include <sys/sysinfo.h>
+#include <sys/file.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <signal.h>
+#include <errno.h>
+
+extern char* program_invocation_name;
+extern char* program_invocation_short_name;
 
 #elif defined ( _WIN64 )
 

@@ -50,7 +50,7 @@ public:
     }
 };
 
-using TerminationLogic = LinuxTerminationLogic;
+using DefaultTerminationLogic = LinuxTerminationLogic;
 
 #elif defined (_WIN64)
 
@@ -77,7 +77,7 @@ public:
     }
 };
 
-using TerminationLogic = CWindowsTerminationLogic;
+using DefaultTerminationLogic = CWindowsTerminationLogic;
 
 #else
 
@@ -87,7 +87,7 @@ struct NullTerminationLogic final
     NullTerminationLogic() {}
 };
 
-using TerminationLogic = NullTerminationLogic;
+using DefaultTerminationLogic = NullTerminationLogic;
 
 #endif // __linux__
 

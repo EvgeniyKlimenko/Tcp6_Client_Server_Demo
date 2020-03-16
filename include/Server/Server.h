@@ -3,7 +3,7 @@
 
 #include "AppLogic.h"
 
-class AsioServer final : public AppLogic<AsioServer>
+class AsioServer final : public AppLogic<AsioServer, true>
 {
 class Connection : public boost::enable_shared_from_this<Connection>
 {
