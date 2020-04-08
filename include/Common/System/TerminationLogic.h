@@ -2,7 +2,7 @@
 #define __THERMINATION_LOGIC_H__
 
 #include "CommonDefinitions.h"
-#include "Exception.h"
+#include "System/Exception.h"
 
 using TerminationCallback_t = boost::function<void(void)>;
 

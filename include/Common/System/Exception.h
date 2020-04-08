@@ -4,7 +4,6 @@
 #include "CommonDefinitions.h"
 
 #if defined(_WIN64)
-
 class CWindowsException final : public std::exception
 {
 public:

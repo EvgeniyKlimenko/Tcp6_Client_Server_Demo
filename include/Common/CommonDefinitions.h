@@ -18,12 +18,18 @@ extern char* program_invocation_short_name;
 #pragma warning(disable:4244)
 #pragma warning(disable:4834)
 
-#define WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 #define BOOST_ASIO_WINDOWS
+#define _WINSOCK_DEPRECATED_NO_WARNINGS	// Exclude old style socket API warnings
+#define _SECURE_SOCKET_TYPES_DEFINED_	// Include IPSec extensions API
 
 #include <windows.h>
+#include <winsock2.h>
 #include <tchar.h>
 #include <process.h>
+#include <mstcpip.h>
+#include <WS2tcpip.h>
+#include <MSWSock.h>
 
 #endif // __linux__
 
@@ -53,6 +59,7 @@ extern char* program_invocation_short_name;
 #include <boost/program_options.hpp>
 #include <boost/asio.hpp>
 #include <boost/enable_shared_from_this.hpp>
+#include <boost/array.hpp>
 
 #if defined ( _WIN64 )
 

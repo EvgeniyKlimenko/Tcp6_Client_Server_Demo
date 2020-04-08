@@ -131,7 +131,7 @@ define link_executable
 	$(foreach ofile,$(OBJECTS),$(eval $(call add_path_prefix,$(abspath $(BUILD)$(SEP)$(SYSTEM)$(SEP)),$(ofile),OBJECT_PATHS)))
 	
 	$(if $(OS),
-		$(eval L_OPTS := /MACHINE:x64 /DEBUG:FULL /SUBSYSTEM:CONSOLE /OPT:NOICF /OPT:NOREF $(LIB_DIRS) /LIBPATH:$(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(COMMON)) $(COMMON)$(LIB_EXT) boost_system-vc142-mt-gd-x64-1_72$(LIB_EXT)),
+		$(eval L_OPTS := /MACHINE:x64 /DEBUG:FULL /SUBSYSTEM:CONSOLE /OPT:NOICF /OPT:NOREF $(LIB_DIRS) /LIBPATH:$(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(COMMON)) $(COMMON)$(LIB_EXT) boost_system-vc142-mt-gd-x64-1_72$(LIB_EXT) ws2_32$(LIB_EXT)),
 		$(eval L_OPTS := -L$(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(COMMON)) -l$(COMMON) -lboost_system -lboost_thread -lboost_program_options)
 	)
 	$(if $(OS),

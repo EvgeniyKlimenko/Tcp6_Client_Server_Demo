@@ -56,4 +56,12 @@ private:
     boost::thread_group m_threadPool;
 };
 
+#if defined (__linux__)
+
+
+
+#elif defined(_WIN64)
+
+#endif
+
 #endif // _SERVER_H__
