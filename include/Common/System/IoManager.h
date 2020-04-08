@@ -23,9 +23,6 @@ public:
 	void Run();
 
 private:
-	void StopThreads();
-
-private:
 	HANDLE m_hPort;
 	size_t m_threadCount;
 };

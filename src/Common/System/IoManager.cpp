@@ -62,7 +62,7 @@ void CIoManager::Run()
 			break;
 
 		// Data arrived for certain endpoint. Each endpoint is aware how to complete this data portion.
-		pEndpoint->Complete(pContext, bytesTransferred);
+		pEndpoint->Complete(bytesTransferred);
 	}
 }
 

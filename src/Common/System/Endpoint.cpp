@@ -3,14 +3,14 @@
 
 #ifdef _WIN64
 
- CAcceptorImpl::CAcceptorImpl(USHORT port, boost::function<void(void)> acceptCallback)
+ CAcceptorImpl::CAcceptorImpl(USHORT port, OperationCallback_t&& acceptCallback)
  : m_addrInfo(nullptr)
  , m_acceptCallback(acceptCallback)
  , m_peerAddr(nullptr)
  {
      // Create acceptor endpoint.
      m_hEndpoint = WSASocket(AF_INET6, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED);
-	if (m_hEndpoint == INVALID_SOCKET) throw CWindowsException(::WSAGetLastError());
+	if (m_hEndpoint == INVALID_SOCKET) throw CWindowsException(WSAGetLastError());
     
 	// Obtain advanced socket API supporting IO completion port principle.
 
@@ -33,15 +33,6 @@
 	{
 		throw CWindowsException(WSAGetLastError());
 	}
-
-	/*funcId = WSAID_DISCONNECTEX;
-	bytesRet = 0;
-
-	if (::WSAIoctl(m_sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &funcId, sizeof(GUID),
-		&m_pfnDisconnectEx, sizeof(PVOID), &bytesRet, nullptr, nullptr) == SOCKET_ERROR)
-	{
-		throw CWindowsException(::WSAGetLastError());
-	}*/
 
 	// Reuse server address to get read of possible errors the previous connection has not been fully disconnected.
 	BOOL reuseAddr = true;
@@ -76,7 +67,7 @@
         freeaddrinfo(m_addrInfo);
  }
 
-void CAcceptorImpl::Complete(LPOVERLAPPED, ULONG)
+void CAcceptorImpl::Complete(ULONG)
 {
 	// This callback triggded only when a new connection accepted.
 	// In this case a callback from the server called.
@@ -141,6 +132,152 @@ std::string CAcceptorImpl::GetPeerInfo()
 	std::stringstream peerInfo;
 	peerInfo << "Peer " << hostName << ":" << serviceName << " connected to the endpoint " << std::setbase(std::ios::hex) << this << ".";
 	return peerInfo.str();
+}
+
+CConnectionImpl::CConnectionImpl(
+	OperationCallback_t&& readCallback,
+	OperationCallback_t&& writeCallback,
+	OperationCallback_t&& disconnectCallback
+	) : m_curState(initial)
+{
+	// Establish state callbacks to be called as the IO opration got completed.
+	m_callbacks.emplace(readPending, readCallback);
+	m_callbacks.emplace(writePending, writeCallback);
+	m_callbacks.emplace(disconnectPending, disconnectCallback);
+
+     // Create connection endpoint.
+     m_hEndpoint = WSASocket(AF_INET6, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED);
+	if (m_hEndpoint == INVALID_SOCKET) throw CWindowsException(WSAGetLastError());
+
+	GUID funcId = WSAID_DISCONNECTEX;
+	ULONG bytesRet = 0;
+
+	if (WSAIoctl(m_hEndpoint, SIO_GET_EXTENSION_FUNCTION_POINTER, &funcId, sizeof(GUID),
+		&m_pfnDisconnectEx, sizeof(PVOID), &bytesRet, nullptr, nullptr) == SOCKET_ERROR)
+	{
+		throw CWindowsException(WSAGetLastError());
+	}
+}
+
+CConnectionImpl::~CConnectionImpl()
+{
+	Reset();
+}
+
+void CConnectionImpl::Read()
+{
+	auto raw = m_buf.prepare(MAX_BUF_SIZE);
+
+	WSABUF dataBuf;
+	dataBuf.buf = boost::asio::buffer_cast<char*>(raw);
+	dataBuf.len = MAX_BUF_SIZE;
+	ULONG flags = 0;
+
+	ResetContext();
+
+	if (WSARecv(m_hEndpoint, &dataBuf, 1, nullptr, &flags, &m_context, nullptr) == SOCKET_ERROR)
+	{
+		ULONG err = WSAGetLastError();
+		if (err != WSA_IO_PENDING)
+			throw CWindowsException(err);
+	}
+
+	SwitchTo(readPending);
+}
+	
+void CConnectionImpl::Write(const _tstring& data)
+{
+	size_t dataSize = data.length() * sizeof(_TCHAR);
+	auto raw = m_buf.prepare(dataSize);
+	std::copy(std::begin(data), std::end(data), boost::asio::buffer_cast<_TCHAR*>(raw));
+	m_buf.commit(dataSize);
+
+	WSABUF dataBuf;
+	dataBuf.buf = boost::asio::buffer_cast<char*>(raw);
+	dataBuf.len = static_cast<ULONG>(dataSize);
+	ULONG flags = 0;
+
+	ResetContext();
+
+	if (WSASend(m_hEndpoint, &dataBuf, 1, nullptr, flags, &m_context, nullptr) == SOCKET_ERROR)
+	{
+		ULONG err = WSAGetLastError();
+		if(err != WSA_IO_PENDING)
+			throw CWindowsException(err);
+	}
+
+	SwitchTo(writePending);
+}
+
+_tstring CConnectionImpl::GetInputData()
+{
+	assert(m_curState == readPending);
+
+	// The buffer's input and output sequence remain unchanged.
+	std::istream input(std::addressof(m_buf));
+
+	// Read from the input sequence and consume the read data.
+	// The string contains data read from the socket.
+	// The buffer's input sequence is empty, the output
+	// sequence remains unchanged.
+	std::string tmp;
+	input >> tmp;
+
+	return _tstring(std::begin(tmp), std::end(tmp));
+}
+
+void CConnectionImpl::Complete(ULONG dataTransferred)
+{
+	if(dataTransferred)
+	{
+		bool dataExchange = (m_curState == readPending) || (m_curState == writePending);
+		assert(dataExchange);
+
+		// Remove dataTransferred bytes from buffer's output sequence appending them to the input sequence. 
+		// The input sequence contains buffer of dataTransfer size,
+		// while the output sequence has MAX_BUF_SIZE - dataTransferred bytes.
+		m_buf.commit(dataTransferred);
+
+		// Here we're gonna initiate data writing if it has just been read.
+		// Or we'll start reading next data portion if previous portion has been written.
+		(m_callbacks[m_curState])();
+	}
+	else
+	{
+		// Asynchronous disconnect completed so we need to reset connection. Now it's ready to reuse.
+		if (m_curState == disconnectPending)
+		{
+			Reset();
+			// Here we're gonna carry connection instance from the active list into the list of those being reused.  
+			(m_callbacks[m_curState])();
+		}
+		else
+		{
+			// Peer closed connection so let's do asynchronouse disconnect, thereby initializing connection reuse.
+			Disconnect();
+		}
+	}
+}
+	
+void CConnectionImpl::ResetContext()
+{
+	memset(&m_context, 0, sizeof(WSAOVERLAPPED));
+}
+
+void CConnectionImpl::Disconnect()
+{
+	ResetContext();
+	if (!m_pfnDisconnectEx(m_hEndpoint, &m_context, TF_REUSE_SOCKET, 0))
+		throw CWindowsException(WSAGetLastError());
+	SwitchTo(disconnectPending);
+}
+
+void CConnectionImpl::Reset()
+{
+	m_curState = initial;
+	m_deleter(m_hEndpoint);
+	m_hEndpoint = INVALID_SOCKET;
+	ResetContext();
 }
 
 #endif

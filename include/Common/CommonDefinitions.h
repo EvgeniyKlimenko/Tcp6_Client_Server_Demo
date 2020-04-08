@@ -60,6 +60,7 @@ extern char* program_invocation_short_name;
 #include <boost/asio.hpp>
 #include <boost/enable_shared_from_this.hpp>
 #include <boost/array.hpp>
+#include <boost/unordered_map.hpp>
 
 #if defined ( _WIN64 )
 
