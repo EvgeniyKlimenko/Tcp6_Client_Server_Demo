@@ -70,7 +70,7 @@ class CWinSockServer final : public AppLogic<CWinSockServer, true>
 {
     using ConnectionManager_t = ConnectionManager
     < 
-        5, IConnection, std::list<IConnection*>,
+        1, IConnection, std::list<IConnection*>,
         boost::function<IConnection* (void)>,
         CWindowsLock, ScopedLocker
     >;
@@ -92,6 +92,7 @@ private:
     void DoAccept();
 
 private:
+    USHORT m_port;
     CWinSockIniter m_wsIniter;
     CAcceptor m_acceptor;
     CThreadPool m_threadPool;

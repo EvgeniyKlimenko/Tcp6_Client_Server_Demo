@@ -175,10 +175,11 @@ CConnectionImpl::~CConnectionImpl()
 
 void CConnectionImpl::Read()
 {
-	auto raw = m_buf.prepare(MAX_BUF_SIZE);
+	m_readBuf.resize(MAX_BUF_SIZE);
+	std::fill(std::begin(m_readBuf), std::end(m_readBuf), 0);
 
 	WSABUF dataBuf;
-	dataBuf.buf = boost::asio::buffer_cast<char*>(raw);
+	dataBuf.buf = &m_readBuf[0];
 	dataBuf.len = MAX_BUF_SIZE;
 	ULONG flags = 0;
 
@@ -196,14 +197,14 @@ void CConnectionImpl::Read()
 	
 void CConnectionImpl::Write(const _tstring& data)
 {
-	size_t dataSize = data.length() * sizeof(_TCHAR);
-	auto raw = m_buf.prepare(dataSize);
-	std::copy(std::begin(data), std::end(data), boost::asio::buffer_cast<_TCHAR*>(raw));
-	m_buf.commit(dataSize);
+	ULONG dataSize = static_cast<ULONG>(data.length());
+	m_writeBuf.resize(dataSize);
+	std::fill(std::begin(m_writeBuf), std::end(m_writeBuf), 0);
+	std::copy(std::begin(data), std::end(data), std::begin(m_writeBuf));
 
 	WSABUF dataBuf;
-	dataBuf.buf = boost::asio::buffer_cast<char*>(raw);
-	dataBuf.len = static_cast<ULONG>(dataSize);
+	dataBuf.buf = &m_writeBuf[0];
+	dataBuf.len = dataSize;
 	ULONG flags = 0;
 
 	ResetContext();
@@ -222,17 +223,7 @@ _tstring CConnectionImpl::GetInputData()
 {
 	assert(m_curState == readPending);
 
-	// The buffer's input and output sequence remain unchanged.
-	std::istream input(std::addressof(m_buf));
-
-	// Read from the input sequence and consume the read data.
-	// The string contains data read from the socket.
-	// The buffer's input sequence is empty, the output
-	// sequence remains unchanged.
-	std::string tmp;
-	input >> tmp;
-
-	return _tstring(std::begin(tmp), std::end(tmp));
+	return _tstring(std::begin(m_readBuf), std::end(m_readBuf));
 }
 
 void CConnectionImpl::Complete(IConnection* connection, ULONG dataTransferred)
@@ -242,10 +233,8 @@ void CConnectionImpl::Complete(IConnection* connection, ULONG dataTransferred)
 		bool dataExchange = (m_curState == readPending) || (m_curState == writePending);
 		assert(dataExchange);
 
-		// Remove dataTransferred bytes from buffer's output sequence appending them to the input sequence. 
-		// The input sequence contains buffer of dataTransfer size,
-		// while the output sequence has MAX_BUF_SIZE - dataTransferred bytes.
-		m_buf.commit(dataTransferred);
+		Buffer_t& buf = (m_curState == readPending) ? m_readBuf : m_writeBuf; 
+		buf.resize(dataTransferred);
 
 		// Here we're gonna initiate data writing if it has just been read.
 		// Or we'll start reading next data portion if previous portion has been written.
@@ -277,7 +266,10 @@ void CConnectionImpl::Disconnect()
 {
 	ResetContext();
 	if (!m_pfnDisconnectEx(m_hEndpoint, &m_context, TF_REUSE_SOCKET, 0))
-		throw CWindowsException(WSAGetLastError());
+	{
+		ULONG err = WSAGetLastError();
+		if (err != ERROR_IO_PENDING) throw CWindowsException(err);
+	}
 	SwitchTo(disconnectPending);
 }
 

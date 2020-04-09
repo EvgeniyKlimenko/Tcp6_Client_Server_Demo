@@ -75,6 +75,7 @@ template
 class CEndpointImplBase
 {
 protected:
+	static const size_t MAX_BUF_SIZE = 1024;
 	ContextType m_context;
 	HandleType m_hEndpoint;
 	HandleDeleterType& m_deleter;
@@ -126,7 +127,7 @@ class CAcceptorImpl final : public CEndpointImplBase<CAcceptorImpl>
 	// 	  This value must be at least 16 bytes more than
 	//    the maximum address length for the transport protocol in use.
 	// See AcceptEx API docummentation for more details.
-	boost::array<BYTE, (sizeof(SOCKADDR_IN6_PAIR) + 32)> m_acceptData;
+	boost::array<BYTE, 2 * (sizeof(SOCKADDR_IN6) + 16)> m_acceptData;
 	SOCKADDR_IN6* m_peerAddr;
 	LPFN_ACCEPTEX m_pfnAcceptEx;
 	LPFN_GETACCEPTEXSOCKADDRS m_pfnGetAcceptExSockaddrs;
@@ -157,7 +158,7 @@ class CConnectionImpl final :  public CEndpointImplBase<CConnectionImpl>
 	using StateCallbackSequence_t = boost::unordered_map<State, OperationCallback_t>;
 
 public:
-	using Buffer_t = boost::asio::streambuf;
+	using Buffer_t = std::vector<char>;
 
 	CConnectionImpl(
 		OperationCallback_t&& readCallback,
@@ -179,9 +180,9 @@ private:
 	void Disconnect();
 	void Reset();
 
-	static const size_t MAX_BUF_SIZE = 1024;
 	State m_curState;
-	Buffer_t m_buf;
+	Buffer_t m_readBuf;
+	Buffer_t m_writeBuf;
 	StateCallbackSequence_t m_callbacks;
 	LPFN_DISCONNECTEX m_pfnDisconnectEx;
 };

@@ -127,7 +127,8 @@ void AsioServer::OnAccept(AsioServer::Connection::Pointer_t connection, const bo
 #if defined(_WIN64)
 
 CWinSockServer::CWinSockServer(USHORT port)
-: m_acceptor(port, boost::bind(&CWinSockServer::OnAcceptComplete, this, _1))
+: m_port(port)
+, m_acceptor(m_port, boost::bind(&CWinSockServer::OnAcceptComplete, this, _1))
 , m_threadPool(boost::bind(&CWinSockServer::AsyncWorkCallback, this))
 , m_ioMgr(m_threadPool.GetThreadCount())
 , m_cnMgr(boost::bind(&CWinSockServer::CreateConnection, this))
@@ -144,6 +145,10 @@ void CWinSockServer::OnRun()
 {
     DoAccept();
     m_threadPool.Start();
+
+    std::cout << "Server ::1(" << m_port << ") is ready." << std::endl;
+    std::cout << "Press any key to exit." << std::endl;
+    std::cin.get();
 }
 
 void CWinSockServer::OnStop()
