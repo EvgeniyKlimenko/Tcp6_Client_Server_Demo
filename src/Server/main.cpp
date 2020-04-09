@@ -23,7 +23,8 @@ int main(int argc, char* argv[])
     }
 
     short port = (varMap.count("port")) ? varMap["port"].as<short>() : DEFAULT_PORT;
-    RUN_APP(AsioServer, port);
+    
+    RUN_APP(CurrentServer, port);
 
     return 0;
 }

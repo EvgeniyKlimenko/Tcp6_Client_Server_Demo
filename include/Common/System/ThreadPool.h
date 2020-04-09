@@ -13,15 +13,19 @@ public:
     CThreadPool(ThreadCallback_t threadCallback);
     ~CThreadPool();
 
-    size_t GetThreadCount() const { return m_threads.size(); }
+    size_t GetThreadCount() const;
+
+    void Start();
+    void Stop();
 
 private:
     static unsigned int __stdcall _ThreadCallback(void* param);
 
-    void Stop();
-
-    std::vector<HANDLE> m_threads;
+private:
     ThreadCallback_t m_threadCallback;
+    ULONG m_threadCount;
+    std::vector<HANDLE> m_threads;
+    
 };
 
 #endif // _WIN64

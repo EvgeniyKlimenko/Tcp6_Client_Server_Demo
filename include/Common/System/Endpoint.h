@@ -18,29 +18,49 @@ struct IEndpoint
 	virtual void Complete(ULONG dataTransferred) = 0;
 };
 
-template <typename Impl>
-class CEndpoint : public IEndpoint
+struct IConnection : IEndpoint
+{
+	virtual ~IConnection() = default;
+
+	virtual void ReadAsync() = 0;
+	virtual void WriteAsync(const _tstring& data) = 0;
+	virtual _tstring GetInputData() = 0;
+};
+template <typename Impl, typename Interface = IEndpoint>
+class CEndpointBase : public Interface
 {
 public:
 	template<typename... Args>
-	CEndpoint(Args&&... args)
+	CEndpointBase(Args&&... args)
 	: m_impl(std::forward<Args>(args)...)
 	{}
 
-	virtual ~CEndpoint() = default;
+	virtual ~CEndpointBase() = default;
 
 	bool IsValid() override { return m_impl.IsValid(); }
 	SOCKET Get() override { return m_impl.Get(); }
 	LPWSAOVERLAPPED GetContext() override { return m_impl.GetContext(); }
 	void ResetContext() override { m_impl.ResetContext(); }
 
-	void Complete(ULONG dataTransferred) override
-	{
-		m_impl.Complete(dataTransferred);
-	}
-
 protected:
 	Impl m_impl;
+};
+
+template <typename Impl>
+class CConnectionBase : public CEndpointBase<Impl, IConnection>
+{
+	using Base_t = CEndpointBase<Impl, IConnection>;
+public:
+	template<typename... Args>
+	CConnectionBase(Args&&... args)
+	: Base_t(std::forward<Args>(args)...)
+	{}
+
+	virtual ~CConnectionBase() = default;
+
+	void ReadAsync() override {m_impl.Read();}
+	void WriteAsync(const _tstring& data) override {m_impl.Write(data);}
+	_tstring GetInputData() override {return m_impl.GetInputData();}
 };
 
 static auto SocketDeleter = [](SOCKET x)->void {if (x) closesocket(x); };
@@ -65,9 +85,7 @@ public:
 	CEndpointImplBase(HandleDeleterType& deleter = SocketDeleter)
 		: m_hEndpoint((HandleType)0)
 		, m_deleter(deleter)
-	{
-		ResetContext();
-	}
+	{}
 
 	~CEndpointImplBase()
 	{
@@ -95,7 +113,7 @@ public:
 	}
 };
 
-using OperationCallback_t = boost::function<void (void)>;
+using OperationCallback_t = boost::function<void (IConnection*)>;
 class CAcceptorImpl final : public CEndpointImplBase<CAcceptorImpl>
 {
     addrinfo* m_addrInfo;
@@ -112,6 +130,7 @@ class CAcceptorImpl final : public CEndpointImplBase<CAcceptorImpl>
 	SOCKADDR_IN6* m_peerAddr;
 	LPFN_ACCEPTEX m_pfnAcceptEx;
 	LPFN_GETACCEPTEXSOCKADDRS m_pfnGetAcceptExSockaddrs;
+	IConnection* m_newConnection;
 
 	using Base_t = CEndpointImplBase<CAcceptorImpl>;
 
@@ -121,11 +140,11 @@ public:
 
     void Complete(ULONG dataTransferred);
 	void ResetContext();
-	void Accept(IEndpoint* connection);
+	void Accept(IConnection* connection);
 	std::string GetPeerInfo();
 };
 
-class CConnectionImpl final :  public CEndpointImplBase<CAcceptorImpl>
+class CConnectionImpl final :  public CEndpointImplBase<CConnectionImpl>
 {
 	enum State
 	{
@@ -152,7 +171,7 @@ public:
 	void Write(const _tstring& data);
 	_tstring GetInputData();
 
-	void Complete(ULONG dataTransferred);
+	void Complete(IConnection* connection, ULONG dataTransferred);
 	void ResetContext();
 
 private:
@@ -167,20 +186,25 @@ private:
 	LPFN_DISCONNECTEX m_pfnDisconnectEx;
 };
 
-class CAcceptor final : public CEndpoint<CAcceptorImpl>
+class CAcceptor final : public CEndpointBase<CAcceptorImpl>
 {
-	using Base_t = CEndpoint<CAcceptorImpl>;
+	using Base_t = CEndpointBase<CAcceptorImpl>;
 public:
 	CAcceptor(USHORT port, OperationCallback_t&& acceptCallback)
 	: Base_t(port, std::forward<OperationCallback_t>(acceptCallback)) {}
 
-	void AcceptAsync(IEndpoint* connection) {m_impl.Accept(connection);}
+	void Complete(ULONG dataTransferred) override
+	{
+		m_impl.Complete(dataTransferred);
+	}
+
+	void AcceptAsync(IConnection* connection) {m_impl.Accept(connection);}
 	std::string GetPeerInfo() {return m_impl.GetPeerInfo();}
 };
 
-class CConnection final : public CEndpoint<CConnectionImpl>
+class CConnection final : public CConnectionBase<CConnectionImpl>
 {
-	using Base_t = CEndpoint<CConnectionImpl>;
+	using Base_t = CConnectionBase<CConnectionImpl>;
 public:
 	CConnection(
 		OperationCallback_t&& readCallback,
@@ -191,11 +215,89 @@ public:
 		std::forward<OperationCallback_t>(writeCallback),
 		std::forward<OperationCallback_t>(disconnectCallback)) {}
 
-	void ReadAsync() {m_impl.Read();}
-	void WriteAsync(const _tstring& data) {m_impl.Write(data);}
-	_tstring GetInputData() {return m_impl.GetInputData();}
+	void Complete(ULONG dataTransferred) override
+	{
+		m_impl.Complete(this, dataTransferred);
+	}
 };
 
 #endif // _WIN64
+
+template
+<
+	size_t DEFAULT_CONNECTION_COUNT,
+	typename Endpoint,
+	typename Container,
+	typename Creator,
+	typename Lock,
+	template <typename> typename Locker
+>
+class ConnectionManager final
+{
+protected:
+	// Both lists accessed atomically.
+	Lock m_lock;
+	// Connection endpoints currently is use.
+	Container m_activeConnections;
+	// Connections endpoints that can be used without creating new ones.
+	Container m_availConnections;
+	// A function object from outside creating new entries.
+	Creator m_creator;
+
+public:
+	ConnectionManager(Creator&& creator)
+	: m_creator(std::forward<Creator>(creator))
+	{
+		// Allocate some number of connections beforehand to be available.
+		for(size_t i = 0; i < DEFAULT_CONNECTION_COUNT; ++i)
+			m_availConnections.push_back(m_creator());
+	}
+
+	~ConnectionManager()
+	{
+		Purge(m_availConnections);
+		Purge(m_activeConnections);
+	}
+
+	Endpoint* Get()
+	{
+		Locker<Lock> locker(m_lock);
+		Endpoint* e = nullptr;
+
+		// Is there something in the list of available connections?
+		if (m_availConnections.empty())
+		{
+			// Create new entry.
+			e = m_creator();
+		}
+		else
+		{
+			// Obtain the foremost entry.
+			e = m_availConnections.front();
+			m_availConnections.pop_front();	
+		}
+
+		// Put entry in the list of active entries and return it.
+		if (e) m_activeConnections.push_back(e);
+		return e;
+	}
+
+	void Release(Endpoint* e)
+	{
+		Locker<Lock> locker(m_lock);
+
+		// Remove entry from the active list.
+		m_activeConnections.remove(e);
+
+		// Put it into the list of available entries.
+		m_availConnections.push_back(e);
+	}
+
+protected:
+	void Purge(Container& c)
+	{
+		std::for_each(std::begin(c), std::end(c), [](Endpoint* e) {delete e;});
+	}
+};
 
 #endif // __ENDPOINT_H__

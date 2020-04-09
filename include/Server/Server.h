@@ -2,7 +2,11 @@
 #define __SERVER_H__
 
 #include "AppLogic.h"
-
+#include "System/WinSockIniter.h"
+#include "System/Endpoint.h"
+#include "System/IoManager.h"
+#include "System/ThreadPool.h"
+#include "System/Synchronization.h"
 class AsioServer final : public AppLogic<AsioServer, true>
 {
 class Connection : public boost::enable_shared_from_this<Connection>
@@ -58,10 +62,49 @@ private:
 
 #if defined (__linux__)
 
-
+// TODO
 
 #elif defined(_WIN64)
 
+class CWinSockServer final : public AppLogic<CWinSockServer, true>
+{
+    using ConnectionManager_t = ConnectionManager
+    < 
+        5, IConnection, std::list<IConnection*>,
+        boost::function<IConnection* (void)>,
+        CWindowsLock, ScopedLocker
+    >;
+public:
+    CWinSockServer(USHORT port);
+    ~CWinSockServer();
+
+    void OnRun();
+    void OnStop();
+
+private:
+    void AsyncWorkCallback();
+    void OnAcceptComplete(IConnection* newConnection);
+    void OnReadComplete(IConnection* connection);
+    void OnWriteComplete(IConnection* connection);
+    void OnDisconnectComplete(IConnection* connection);
+    IConnection* CreateConnection();
+
+    void DoAccept();
+
+private:
+    CWinSockIniter m_wsIniter;
+    CAcceptor m_acceptor;
+    CThreadPool m_threadPool;
+    CIoManager m_ioMgr;
+    ConnectionManager_t m_cnMgr;
+};
+
 #endif
+
+#if defined USE_NATIVE
+using CurrentServer = CWinSockServer;
+#else
+using CurrentServer = AsioServer;
+#endif // USE_NATIVE
 
 #endif // _SERVER_H__

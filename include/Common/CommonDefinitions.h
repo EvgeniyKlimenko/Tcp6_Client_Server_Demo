@@ -62,6 +62,8 @@ extern char* program_invocation_short_name;
 #include <boost/array.hpp>
 #include <boost/unordered_map.hpp>
 
+#define USE_NATIVE
+
 #if defined ( _WIN64 )
 
 using _tstring = std::basic_string<_TCHAR>;

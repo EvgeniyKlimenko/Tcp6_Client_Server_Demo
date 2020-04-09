@@ -7,7 +7,10 @@
  : m_addrInfo(nullptr)
  , m_acceptCallback(acceptCallback)
  , m_peerAddr(nullptr)
+ , m_newConnection(nullptr)
  {
+	 ResetContext();
+
      // Create acceptor endpoint.
      m_hEndpoint = WSASocket(AF_INET6, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED);
 	if (m_hEndpoint == INVALID_SOCKET) throw CWindowsException(WSAGetLastError());
@@ -74,17 +77,21 @@ void CAcceptorImpl::Complete(ULONG)
 	// We use server callback because accept operation should be handled
 	// by the whole server, not an acceptor only. Thereby only the acceptor
 	// is able to track accpet operation completion.
-	m_acceptCallback();
+	m_acceptCallback(m_newConnection);
 }
 
 void CAcceptorImpl::ResetContext()
 {
 	memset(&m_context, 0, sizeof(WSAOVERLAPPED));
 	std::fill(std::begin(m_acceptData), std::end(m_acceptData), 0);
+	m_newConnection = nullptr;
 }
 
-void CAcceptorImpl::Accept(IEndpoint* connection)
+void CAcceptorImpl::Accept(IConnection* connection)
 {
+	ResetContext();
+
+	m_newConnection = connection;
 	PBYTE acceptBuf = &m_acceptData[0];
 	ULONG addrLen = static_cast<ULONG>(sizeof(SOCKADDR_IN6) + 16);
 	if (!m_pfnAcceptEx(m_hEndpoint, connection->Get(), acceptBuf, 0,
@@ -130,7 +137,7 @@ std::string CAcceptorImpl::GetPeerInfo()
 	serviceName.resize(strlen(serviceName.c_str()));
 
 	std::stringstream peerInfo;
-	peerInfo << "Peer " << hostName << ":" << serviceName << " connected to the endpoint " << std::setbase(std::ios::hex) << this << ".";
+	peerInfo << "Peer " << hostName << ":" << serviceName << " connected.";
 	return peerInfo.str();
 }
 
@@ -140,6 +147,8 @@ CConnectionImpl::CConnectionImpl(
 	OperationCallback_t&& disconnectCallback
 	) : m_curState(initial)
 {
+	ResetContext();
+
 	// Establish state callbacks to be called as the IO opration got completed.
 	m_callbacks.emplace(readPending, readCallback);
 	m_callbacks.emplace(writePending, writeCallback);
@@ -226,7 +235,7 @@ _tstring CConnectionImpl::GetInputData()
 	return _tstring(std::begin(tmp), std::end(tmp));
 }
 
-void CConnectionImpl::Complete(ULONG dataTransferred)
+void CConnectionImpl::Complete(IConnection* connection, ULONG dataTransferred)
 {
 	if(dataTransferred)
 	{
@@ -240,7 +249,7 @@ void CConnectionImpl::Complete(ULONG dataTransferred)
 
 		// Here we're gonna initiate data writing if it has just been read.
 		// Or we'll start reading next data portion if previous portion has been written.
-		(m_callbacks[m_curState])();
+		(m_callbacks[m_curState])(connection);
 	}
 	else
 	{
@@ -249,7 +258,7 @@ void CConnectionImpl::Complete(ULONG dataTransferred)
 		{
 			Reset();
 			// Here we're gonna carry connection instance from the active list into the list of those being reused.  
-			(m_callbacks[m_curState])();
+			(m_callbacks[m_curState])(connection);
 		}
 		else
 		{
@@ -275,8 +284,6 @@ void CConnectionImpl::Disconnect()
 void CConnectionImpl::Reset()
 {
 	m_curState = initial;
-	m_deleter(m_hEndpoint);
-	m_hEndpoint = INVALID_SOCKET;
 	ResetContext();
 }
 

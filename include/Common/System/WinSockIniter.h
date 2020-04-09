@@ -5,7 +5,7 @@
 
 #if defined(_WIN64)
 
-class CWinSockIniter
+class CWinSockIniter final
 {
 public:
 	CWinSockIniter()
