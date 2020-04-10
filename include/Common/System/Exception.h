@@ -18,6 +18,8 @@ public:
 	CWindowsException& operator = (const CWindowsException& other);
 	const char* what() const override;
 
+	static std::string GetErrorDescription(ULONG code);
+
 private:
 	void ResolveDescription();
 

@@ -247,9 +247,9 @@ void CConnectionImpl::Complete(IConnection* connection, ULONG dataTransferred)
 		// Asynchronous disconnect completed so we need to reset connection. Now it's ready to reuse.
 		if (m_curState == disconnectPending)
 		{
-			Reset();
 			// Here we're gonna carry connection instance from the active list into the list of those being reused.  
 			(m_callbacks[m_curState])(connection);
+			Reset();
 		}
 		else
 		{

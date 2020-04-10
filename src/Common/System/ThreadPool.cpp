@@ -57,6 +57,9 @@ void CThreadPool::Stop()
 	// Clreanup each thread object.
 	std::for_each(std::begin(m_threads), std::end(m_threads),
 		[](HANDLE th) {CloseHandle(th);});
+
+	// Clear since ther's no more active threads.
+	m_threads.clear();
 }
 
 #endif // _WIN64

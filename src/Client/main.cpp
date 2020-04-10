@@ -26,7 +26,7 @@ int main(int argc, char* argv[])
 
     const char* host = (varMap.count("host")) ? varMap["host"].as<std::string>().c_str() : DEFAULT_HOST;
     short port = (varMap.count("port")) ? varMap["port"].as<short>() : DEFAULT_PORT;
-    RUN_APP(AsioClient, host, port);
+    RUN_APP(CurrentClient, host, port);
 
     return 0;
 }

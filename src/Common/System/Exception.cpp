@@ -28,20 +28,28 @@ const char* CWindowsException::what() const
 	return m_description.c_str();
 }
 
-void CWindowsException::ResolveDescription()
+std::string CWindowsException::GetErrorDescription(ULONG code)
 {
 	_TCHAR* msg = nullptr;
+	std::string descr;
 
 	FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, 
-		nullptr, m_code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), reinterpret_cast<_TCHAR*>(&msg), 0, nullptr);
+		nullptr, code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), reinterpret_cast<_TCHAR*>(&msg), 0, nullptr);
 	if (msg)
 	{
 		_tstringstream stm;
-		stm << _T("Windows error ") << m_code << _T(" - ") << msg;
+		stm << _T("Windows error ") << code << _T(" - ") << msg;
 		_tstring str = stm.str();
-		m_description.assign(str.begin(), str.end());
+		descr.assign(std::begin(str), std::end(str));
 		LocalFree(msg);
 	}
+
+	return descr;
+}
+
+void CWindowsException::ResolveDescription()
+{
+	m_description = GetErrorDescription(m_code);
 }
 
 _se_translator_function CSehException::s_prev = nullptr;
