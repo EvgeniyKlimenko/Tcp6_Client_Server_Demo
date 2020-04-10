@@ -61,8 +61,9 @@ extern char* program_invocation_short_name;
 #include <boost/enable_shared_from_this.hpp>
 #include <boost/array.hpp>
 #include <boost/unordered_map.hpp>
+#include <boost/unordered_set.hpp>
 
-#define USE_NATIVE
+//#define USE_NATIVE
 
 #if defined ( _WIN64 )
 

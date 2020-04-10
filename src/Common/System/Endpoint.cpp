@@ -195,11 +195,10 @@ void CConnectionImpl::Read()
 	SwitchTo(readPending);
 }
 	
-void CConnectionImpl::Write(const _tstring& data)
+void CConnectionImpl::Write(const std::string& data)
 {
 	ULONG dataSize = static_cast<ULONG>(data.length());
 	m_writeBuf.resize(dataSize);
-	std::fill(std::begin(m_writeBuf), std::end(m_writeBuf), 0);
 	std::copy(std::begin(data), std::end(data), std::begin(m_writeBuf));
 
 	WSABUF dataBuf;
@@ -219,11 +218,15 @@ void CConnectionImpl::Write(const _tstring& data)
 	SwitchTo(writePending);
 }
 
-_tstring CConnectionImpl::GetInputData()
+std::string CConnectionImpl::GetInputData()
 {
 	assert(m_curState == readPending);
 
-	return _tstring(std::begin(m_readBuf), std::end(m_readBuf));
+	std::string data;
+	data.resize(m_readBuf.size());
+	std::copy(std::begin(m_readBuf), std::end(m_readBuf), std::begin(data));
+
+	return data;
 }
 
 void CConnectionImpl::Complete(IConnection* connection, ULONG dataTransferred)
@@ -233,8 +236,7 @@ void CConnectionImpl::Complete(IConnection* connection, ULONG dataTransferred)
 		bool dataExchange = (m_curState == readPending) || (m_curState == writePending);
 		assert(dataExchange);
 
-		Buffer_t& buf = (m_curState == readPending) ? m_readBuf : m_writeBuf; 
-		buf.resize(dataTransferred);
+		if (m_curState == readPending) m_readBuf.resize(dataTransferred);
 
 		// Here we're gonna initiate data writing if it has just been read.
 		// Or we'll start reading next data portion if previous portion has been written.

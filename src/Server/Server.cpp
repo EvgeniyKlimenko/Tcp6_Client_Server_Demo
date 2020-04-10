@@ -184,8 +184,8 @@ void CWinSockServer::OnAcceptComplete(IConnection* newConnection)
 void CWinSockServer::OnReadComplete(IConnection* connection)
 {
     // Asynchronous data reading just completed - get the data.
-    _tstring data = connection->GetInputData();
-    std::cout << "Data coming from peer: " << std::string(std::begin(data), std::end(data)) << std::endl;
+    std::string data = connection->GetInputData();
+    std::cout << "Data coming from peer: " << data << std::endl;
     // Write the back back to the peer.
     connection->WriteAsync(data);
 }

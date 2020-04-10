@@ -23,8 +23,8 @@ struct IConnection : IEndpoint
 	virtual ~IConnection() = default;
 
 	virtual void ReadAsync() = 0;
-	virtual void WriteAsync(const _tstring& data) = 0;
-	virtual _tstring GetInputData() = 0;
+	virtual void WriteAsync(const std::string& data) = 0;
+	virtual std::string GetInputData() = 0;
 };
 template <typename Impl, typename Interface = IEndpoint>
 class CEndpointBase : public Interface
@@ -59,8 +59,8 @@ public:
 	virtual ~CConnectionBase() = default;
 
 	void ReadAsync() override {m_impl.Read();}
-	void WriteAsync(const _tstring& data) override {m_impl.Write(data);}
-	_tstring GetInputData() override {return m_impl.GetInputData();}
+	void WriteAsync(const std::string& data) override {m_impl.Write(data);}
+	std::string GetInputData() override {return m_impl.GetInputData();}
 };
 
 static auto SocketDeleter = [](SOCKET x)->void {if (x) closesocket(x); };
@@ -169,8 +169,8 @@ public:
 	~CConnectionImpl();
 
 	void Read();
-	void Write(const _tstring& data);
-	_tstring GetInputData();
+	void Write(const std::string& data);
+	std::string GetInputData();
 
 	void Complete(IConnection* connection, ULONG dataTransferred);
 	void ResetContext();
@@ -224,6 +224,92 @@ public:
 
 #endif // _WIN64
 
+// An adapter class for anyb kind of container.
+// Currently we provide specialization for a list
+// but the template class can be specialized for
+// any kind of container.
+
+template <typename Target, typename Container>
+class ConnectionContainer final
+{
+public:
+	bool IsEmpty() const;
+	void Add(Target t);
+	Target Release();
+	void Remove(Target t);
+	void Purge();
+};
+
+template <typename Target>
+class ConnectionContainer<Target*, std::list<Target*>> final
+{
+	std::list<Target*> m_container;
+public:
+	~ConnectionContainer() {Purge();}
+
+	bool IsEmpty() const { return m_container.empty(); }
+
+	void Add(Target* t)
+	{
+		if(t) m_container.push_back(t);
+	}
+
+	Target* Release()
+	{
+		Target* t = m_container.front();
+		m_container.pop_front();
+		return t;
+	}
+
+	void Remove(Target* t)
+	{
+		if(t) m_container.remove(t);
+	}
+
+	void Purge()
+	{
+		std::for_each(std::begin(m_container), std::end(m_container), [](Target* t) { delete t; } );
+	}
+};
+
+template <typename Target>
+class ConnectionContainer<Target*, boost::unordered_set<Target*>> final
+{
+	boost::unordered_set<Target*> m_container;
+public:
+	~ConnectionContainer() {Purge();}
+
+	bool IsEmpty() const { return m_container.empty(); }
+
+	void Add(Target* t)
+	{
+		if(t) m_container.insert(t);
+	}
+
+	Target* Release()
+	{
+		auto it = std::begin(m_container);
+		Target* t = *it;
+		m_container.erase(it);
+		return t;
+	}
+
+	void Remove(Target* t)
+	{
+		if(t) m_container.erase(t);
+	}
+
+	void Purge()
+	{
+		std::for_each(std::begin(m_container), std::end(m_container), [](Target* t) { delete t; } );
+	}
+};
+
+template <typename Target>
+using PointerList_t =  ConnectionContainer<Target*, std::list<Target*>>;
+
+template <typename Target>
+using PointerHashTable_t =  ConnectionContainer<Target*, boost::unordered_set<Target*>>;
 template
 <
 	size_t DEFAULT_CONNECTION_COUNT,
@@ -251,13 +337,7 @@ public:
 	{
 		// Allocate some number of connections beforehand to be available.
 		for(size_t i = 0; i < DEFAULT_CONNECTION_COUNT; ++i)
-			m_availConnections.push_back(m_creator());
-	}
-
-	~ConnectionManager()
-	{
-		Purge(m_availConnections);
-		Purge(m_activeConnections);
+			m_availConnections.Add(m_creator());
 	}
 
 	Endpoint* Get()
@@ -266,7 +346,7 @@ public:
 		Endpoint* e = nullptr;
 
 		// Is there something in the list of available connections?
-		if (m_availConnections.empty())
+		if (m_availConnections.IsEmpty())
 		{
 			// Create new entry.
 			e = m_creator();
@@ -274,12 +354,11 @@ public:
 		else
 		{
 			// Obtain the foremost entry.
-			e = m_availConnections.front();
-			m_availConnections.pop_front();	
+			e = m_availConnections.Release();	
 		}
 
 		// Put entry in the list of active entries and return it.
-		if (e) m_activeConnections.push_back(e);
+		m_activeConnections.Add(e);
 		return e;
 	}
 
@@ -288,16 +367,10 @@ public:
 		Locker<Lock> locker(m_lock);
 
 		// Remove entry from the active list.
-		m_activeConnections.remove(e);
+		m_activeConnections.Remove(e);
 
 		// Put it into the list of available entries.
-		m_availConnections.push_back(e);
-	}
-
-protected:
-	void Purge(Container& c)
-	{
-		std::for_each(std::begin(c), std::end(c), [](Endpoint* e) {delete e;});
+		m_availConnections.Add(e);
 	}
 };
 

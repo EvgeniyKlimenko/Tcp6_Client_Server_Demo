@@ -70,7 +70,7 @@ class CWinSockServer final : public AppLogic<CWinSockServer, true>
 {
     using ConnectionManager_t = ConnectionManager
     < 
-        1, IConnection, std::list<IConnection*>,
+        1, IConnection, PointerList_t<IConnection>,
         boost::function<IConnection* (void)>,
         CWindowsLock, ScopedLocker
     >;
