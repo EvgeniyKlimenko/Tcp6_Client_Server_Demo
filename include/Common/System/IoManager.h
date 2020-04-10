@@ -10,7 +10,7 @@
 class CIoManager final
 {
 public:
-	// Create new completion port and dedicated threads.
+	// Create new completion port.
 	CIoManager(size_t threadCount);
 	~CIoManager();
 
@@ -25,6 +25,33 @@ public:
 private:
 	HANDLE m_hPort;
 	size_t m_threadCount;
+};
+
+
+#elif defined(__linux__)
+
+class IoManager final
+{
+public:
+	// Create new epoll.
+	IoManager(size_t threadCount);
+	~IoManager();
+
+	// Bind endpoint to an epoll.
+	void Bind(IEndpoint* endpoint);
+	// Post exit signal to finish up thread routines.
+	void Stop();
+
+	// Data coming to particular endpoint post-processed here.
+	void Run();
+
+private:
+	enum ExitEnds {reader, writer};
+
+	static const size_t MAX_ENDPOINTS = 0xffff;
+	size_t m_threadCount;
+	int m_fd;
+	int m_exiters[2];
 };
 
 #endif // _WIN64

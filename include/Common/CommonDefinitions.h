@@ -5,6 +5,7 @@
 
 #include <sys/sysinfo.h>
 #include <sys/file.h>
+#include <sys/epoll.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <signal.h>

@@ -1,7 +1,7 @@
 #include "System/Endpoint.h"
 #include "System/Exception.h"
 
-#ifdef _WIN64
+#if defined(_WIN64)
 
  CAcceptorImpl::CAcceptorImpl(USHORT port, OperationCallback_t&& acceptCallback)
  : m_addrInfo(nullptr)

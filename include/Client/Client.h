@@ -46,8 +46,12 @@ private:
 
 #endif
 
-#if defined USE_NATIVE
+#if defined(USE_NATIVE)
+#if defined(_WIN64)
 using CurrentClient = CWinSockClient;
+#elif defined(__linux__)
+using CurrentClient = AsioClient;
+#endif
 #else
 using CurrentClient = AsioClient;
 #endif // USE_NATIVE

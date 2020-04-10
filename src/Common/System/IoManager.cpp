@@ -66,4 +66,79 @@ void CIoManager::Run()
 	}
 }
 
+#elif defined(__linux__)
+
+IoManager::IoManager(size_t threadCount)
+: m_threadCount(threadCount)
+{
+	// Creating epoll itself.
+	m_fd = epoll_create1(0);
+	if(m_fd < 0) throw SystemException(errno);
+
+	// Creating pipes to signal epoll at exit to be woken up from waiting.
+	if(pipe2(m_exiters, O_NONBLOCK) < 0)
+		throw SystemException(errno);
+
+	// Bind exit reader with an epoll.
+	epoll_event ev;
+	ev.events = EPOLLET | EPOLLIN;
+	ev.data.fd = m_exiters[reader];
+	if(epoll_ctl(m_fd, EPOLL_CTL_ADD, m_exiters[reader], &ev) < 0)
+		throw SystemException(errno);
+}
+
+IoManager::~IoManager()
+{
+	Stop();
+	close(m_exiters[writer]);
+	close(m_exiters[reader]);
+	close(m_fd);
+}
+
+void IoManager::Bind(IEndpoint* endpoint)
+{
+	epoll_event ev;
+	ev.events = EPOLLET | EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLEXCLUSIVE | EPOLLWAKEUP;
+	ev.data.fd = endpoint->Get();
+	ev.data.ptr = endpoint;
+	if(epoll_ctl(m_fd, EPOLL_CTL_ADD, endpoint->Get(), &ev) < 0)
+		throw SystemException(errno);
+}
+
+void IoManager::Stop()
+{
+	// Send finish to all threads bound to epoll via exit writer.
+	// Exit reader in turn will be signaled waking up
+	// the thread and than breaking a thread loop.
+	for(size_t i = 0; i < m_threadCount; ++i)
+	{
+		bool exit = true;
+		write(m_exiters[writer], &exit, sizeof(exit));
+	}
+}
+
+void IoManager::Run()
+{
+    boost::array<epoll_event, MAX_ENDPOINTS> events;
+
+    for (;;)
+    {
+        int readyCount = epoll_wait(m_fd, events.data(), MAX_ENDPOINTS, -1);
+		if (readyCount < 0) throw SystemException(errno);
+
+        for (int i = 0; i < readyCount; ++i)
+        {
+			if (events[i].data.fd == m_exiters[reader])
+			{
+				// Time to finish.
+				return;
+			}
+
+			// Asynchronous operation occurred on endpoint needed to complete.
+			IEndpoint* e = reinterpret_cast<IEndpoint*>(events[i].data.ptr);
+			e->Complete();
+        }
+    }
+}
+
 #endif // _WIN64

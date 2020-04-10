@@ -3,7 +3,7 @@
 
 #include "CommonDefinitions.h"
 
-#ifdef _WIN64
+#if defined(_WIN64)
 
 // Interface of endpoint to be controlled by completion port.
 struct IEndpoint
@@ -220,6 +220,17 @@ public:
 	{
 		m_impl.Complete(this, dataTransferred);
 	}
+};
+
+#elif defined(__linux__)
+
+struct IEndpoint
+{
+	virtual ~IEndpoint() = default;
+
+	virtual bool IsValid() = 0;
+	virtual int Get() = 0;
+	virtual void Complete() = 0;
 };
 
 #endif // _WIN64

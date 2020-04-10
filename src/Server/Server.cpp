@@ -153,10 +153,10 @@ void CWinSockServer::OnRun()
 
 void CWinSockServer::OnStop()
 {
-    std::cout << "Finishing Winsock server..." << std::endl;
+    std::cout << "Finishing WinSock server..." << std::endl;
     m_ioMgr.Stop();
     m_threadPool.Stop();
-    std::cout << "Winsock server finished." << std::endl;
+    std::cout << "WinSock server finished." << std::endl;
 }
 
 void CWinSockServer::AsyncWorkCallback()

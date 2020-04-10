@@ -102,8 +102,12 @@ private:
 
 #endif
 
-#if defined USE_NATIVE
+#if defined(USE_NATIVE)
+#if defined(_WIN64)
 using CurrentServer = CWinSockServer;
+#elif defined(__linux__)
+using CurrentServer = AsioServer;
+#endif
 #else
 using CurrentServer = AsioServer;
 #endif // USE_NATIVE
