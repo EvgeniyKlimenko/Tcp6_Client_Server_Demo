@@ -5,8 +5,6 @@ AsioClient::AsioClient(const char* addr, uint16_t port)
 : m_sock(m_ioSvc)
 , m_endpoint(boost::asio::ip::address::from_string(addr), port)
 {
-    memset(m_data, 0, BUF_SIZE);
-
     m_sock.connect(m_endpoint);
     auto peer = m_sock.remote_endpoint();
     std::cout << "Client " << m_endpoint.address().to_string() << "(" 
@@ -35,14 +33,15 @@ void AsioClient::OnRun()
             std::cout << "Data " << input << " delivered to the server." << std::endl;
         }
 
-        boost::asio::read(m_sock, boost::asio::buffer(m_data, BUF_SIZE), boost::asio::transfer_all(), err);
+        std::fill(std::begin(m_data), std::end(m_data), 0);
+        size_t bytesRead = boost::asio::read(m_sock, boost::asio::buffer(m_data), boost::asio::transfer_all(), err);
         if (err && err != boost::asio::error::eof)
         {
             std::cerr << "Error reading data: " << err.message() << std::endl;
         }
         else
         {
-            std::string dataReceived(m_data);
+            std::string dataReceived(&m_data[0], std::min<size_t>(bytesRead, input.length()));
             std::cout << "Data received: " << dataReceived << std::endl;
         }
     }

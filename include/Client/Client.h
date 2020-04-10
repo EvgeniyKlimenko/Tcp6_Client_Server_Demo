@@ -17,7 +17,7 @@ private:
     boost::asio::io_service m_ioSvc;
     boost::asio::ip::tcp::socket m_sock;
     boost::asio::ip::tcp::endpoint m_endpoint;
-    char m_data[BUF_SIZE];
+    boost::array<char, BUF_SIZE> m_data;
 };
 
 #endif // __CLIENT_H__
