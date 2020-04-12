@@ -158,7 +158,7 @@ class CConnectionImpl final :  public CEndpointImplBase<CConnectionImpl>
 	using StateCallbackSequence_t = boost::unordered_map<State, OperationCallback_t>;
 
 public:
-	using Buffer_t = std::vector<char>;
+	using Buffer_t = boost::array<char, MAX_BUF_SIZE>;
 
 	CConnectionImpl(
 		OperationCallback_t&& readCallback,

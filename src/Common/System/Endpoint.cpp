@@ -149,6 +149,9 @@ CConnectionImpl::CConnectionImpl(
 {
 	ResetContext();
 
+	std::fill(std::begin(m_readBuf), std::end(m_readBuf), 0);
+	std::fill(std::begin(m_writeBuf), std::end(m_writeBuf), 0);
+
 	// Establish state callbacks to be called as the IO opration got completed.
 	m_callbacks.emplace(readPending, readCallback);
 	m_callbacks.emplace(writePending, writeCallback);
@@ -175,9 +178,6 @@ CConnectionImpl::~CConnectionImpl()
 
 void CConnectionImpl::Read()
 {
-	m_readBuf.resize(MAX_BUF_SIZE);
-	std::fill(std::begin(m_readBuf), std::end(m_readBuf), 0);
-
 	WSABUF dataBuf;
 	dataBuf.buf = &m_readBuf[0];
 	dataBuf.len = MAX_BUF_SIZE;
@@ -197,8 +197,8 @@ void CConnectionImpl::Read()
 	
 void CConnectionImpl::Write(const std::string& data)
 {
+	// Copy output data into the buffer without buffer reallocation.
 	ULONG dataSize = static_cast<ULONG>(data.length());
-	m_writeBuf.resize(dataSize);
 	std::copy(std::begin(data), std::end(data), std::begin(m_writeBuf));
 
 	WSABUF dataBuf;
@@ -222,9 +222,11 @@ std::string CConnectionImpl::GetInputData()
 {
 	assert(m_curState == readPending);
 
+	// Copy input data until the \0 symbol occurred.
+	auto endPos = std::find(std::begin(m_readBuf), std::end(m_readBuf), 0);
 	std::string data;
-	data.resize(m_readBuf.size());
-	std::copy(std::begin(m_readBuf), std::end(m_readBuf), std::begin(data));
+	data.resize(std::distance(std::begin(m_readBuf), endPos));
+	std::copy(std::begin(m_readBuf), endPos, std::begin(data));
 
 	return data;
 }
@@ -236,11 +238,15 @@ void CConnectionImpl::Complete(IConnection* connection, ULONG dataTransferred)
 		bool dataExchange = (m_curState == readPending) || (m_curState == writePending);
 		assert(dataExchange);
 
-		if (m_curState == readPending) m_readBuf.resize(dataTransferred);
-
 		// Here we're gonna initiate data writing if it has just been read.
 		// Or we'll start reading next data portion if previous portion has been written.
 		(m_callbacks[m_curState])(connection);
+
+		// At operation complete stage zero out only part of buffer containing letters.
+		// Other part is zeroed initially, thus no need to do it again spending CPU time.
+		Buffer_t& buf = (m_curState == readPending) ? m_readBuf : m_writeBuf;
+		auto endPos = std::begin(buf) + std::min<ULONG>(dataTransferred, MAX_BUF_SIZE);
+		std::fill(std::begin(buf), endPos, 0);
 	}
 	else
 	{
