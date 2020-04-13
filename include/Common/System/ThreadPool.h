@@ -3,7 +3,7 @@
 
 #include "CommonDefinitions.h"
 
-#ifdef _WIN64
+#if defined(_WIN64)
 
 class CThreadPool final
 {
@@ -25,6 +25,31 @@ private:
     ThreadCallback_t m_threadCallback;
     ULONG m_threadCount;
     std::vector<HANDLE> m_threads;
+    
+};
+
+#elif defined(__linux__)
+
+class ThreadPool final
+{
+public:
+    using ThreadCallback_t = boost::function<void (void)>;
+
+    ThreadPool(ThreadCallback_t threadCallback);
+    ~ThreadPool();
+
+    size_t GetThreadCount() const;
+
+    void Start();
+    void Stop();
+
+private:
+    static void* _ThreadCallback(void* param);
+
+private:
+    ThreadCallback_t m_threadCallback;
+    uint32_t m_threadCount;
+    std::vector<pthread_t> m_threads;
     
 };
 

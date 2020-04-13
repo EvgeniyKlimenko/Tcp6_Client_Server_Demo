@@ -62,4 +62,52 @@ void CThreadPool::Stop()
 	m_threads.clear();
 }
 
+#elif defined(__linux__)
+
+ThreadPool::ThreadPool(ThreadPool::ThreadCallback_t threadCallback)
+: m_threadCallback(threadCallback)
+{
+	// Determine number of dedicated threads.
+	m_threadCount = 2 * get_nprocs() + 1;
+}
+
+ThreadPool::~ThreadPool()
+{
+    Stop();
+}
+
+void* ThreadPool::_ThreadCallback(void* param)
+{
+    ThreadPool* self = reinterpret_cast<ThreadPool*>(param);
+    self->m_threadCallback();
+    return nullptr;
+}
+
+size_t ThreadPool::GetThreadCount() const
+{
+	return m_threadCount;
+}
+
+void ThreadPool::Start()
+{
+	for (unsigned i = 0; i < m_threadCount; ++i)
+	{
+		pthread_t th;
+		int res = pthread_create(&th, nullptr, &ThreadPool::_ThreadCallback, this);
+		if(res) throw SystemException(res);
+
+		m_threads.push_back(th);
+	}
+}
+
+void ThreadPool::Stop()
+{
+	// Clreanup each thread object.
+	std::for_each(std::begin(m_threads), std::end(m_threads),
+		[](pthread_t& th) {pthread_join(th, nullptr);});
+
+	// Clear since ther's no more active threads.
+	m_threads.clear();
+}
+
 #endif // _WIN64
