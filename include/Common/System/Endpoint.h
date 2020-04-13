@@ -233,6 +233,15 @@ struct IEndpoint
 	virtual void Complete() = 0;
 };
 
+struct IConnection : IEndpoint
+{
+	virtual ~IConnection() = default;
+
+	virtual void ReadAsync() = 0;
+	virtual void WriteAsync(const std::string& data) = 0;
+	virtual std::string GetInputData() = 0;
+};
+
 #endif // _WIN64
 
 // An adapter class for anyb kind of container.

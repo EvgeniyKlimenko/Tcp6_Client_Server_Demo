@@ -79,7 +79,7 @@ class SystemServer final : public AppLogic
 >
 {
 public:
-    SystemServer(USHORT port)
+    SystemServer(unsigned short port)
     : m_port(port)
     , m_acceptor(m_port, boost::bind(&SystemServer::OnAcceptComplete, this, _1))
     , m_threadPool(boost::bind(&SystemServer::AsyncWorkCallback, this))
@@ -91,7 +91,8 @@ public:
 
     ~SystemServer()
     {
-        Stop();
+        // GCC doesn't see member function of the base template class.
+        this->Stop();
     }
 
     void OnRun()
@@ -121,7 +122,8 @@ private:
         }
         catch(...)
         {
-            m_exceptioning.Append(boost::current_exception());
+            // GCC doesn't see member variable of the base template class.
+            this->m_exceptioning.Append(boost::current_exception());
         }
     }
 
@@ -177,7 +179,7 @@ private:
     }
 
 private:
-    USHORT m_port;
+    unsigned short m_port;
     SocketSubsystemIniter m_sockIniter;
     Acceptor m_acceptor;
     ThreadPool m_threadPool;
