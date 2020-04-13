@@ -240,91 +240,85 @@ struct IEndpoint
 // but the template class can be specialized for
 // any kind of container.
 
-template <typename Target, typename Container>
+template <typename Container>
 class ConnectionContainer final
 {
 public:
 	bool IsEmpty() const;
-	void Add(Target t);
-	Target Release();
-	void Remove(Target t);
+	void Add(IConnection* c);
+	IConnection* Release();
+	void Remove(IConnection* c);
 	void Purge();
 };
 
-template <typename Target>
-class ConnectionContainer<Target*, std::list<Target*>> final
+template <> class ConnectionContainer<std::list<IConnection*>> final
 {
-	std::list<Target*> m_container;
+	std::list<IConnection*> m_container;
 public:
 	~ConnectionContainer() {Purge();}
 
 	bool IsEmpty() const { return m_container.empty(); }
 
-	void Add(Target* t)
+	void Add(IConnection* c)
 	{
-		if(t) m_container.push_back(t);
+		if(c) m_container.push_back(c);
 	}
 
-	Target* Release()
+	IConnection* Release()
 	{
-		Target* t = m_container.front();
+		IConnection* c = m_container.front();
 		m_container.pop_front();
-		return t;
+		return c;
 	}
 
-	void Remove(Target* t)
+	void Remove(IConnection* c)
 	{
-		if(t) m_container.remove(t);
+		if(c) m_container.remove(c);
 	}
 
 	void Purge()
 	{
-		std::for_each(std::begin(m_container), std::end(m_container), [](Target* t) { delete t; } );
+		std::for_each(std::begin(m_container), std::end(m_container), [](IConnection* c) { delete c; } );
 	}
 };
 
-template <typename Target>
-class ConnectionContainer<Target*, boost::unordered_set<Target*>> final
+template <> class ConnectionContainer<boost::unordered_set<IConnection*>> final
 {
-	boost::unordered_set<Target*> m_container;
+	boost::unordered_set<IConnection*> m_container;
 public:
 	~ConnectionContainer() {Purge();}
 
 	bool IsEmpty() const { return m_container.empty(); }
 
-	void Add(Target* t)
+	void Add(IConnection* c)
 	{
-		if(t) m_container.insert(t);
+		if(c) m_container.insert(c);
 	}
 
-	Target* Release()
+	IConnection* Release()
 	{
 		auto it = std::begin(m_container);
-		Target* t = *it;
+		IConnection* c = *it;
 		m_container.erase(it);
-		return t;
+		return c;
 	}
 
-	void Remove(Target* t)
+	void Remove(IConnection* c)
 	{
-		if(t) m_container.erase(t);
+		if(c) m_container.erase(c);
 	}
 
 	void Purge()
 	{
-		std::for_each(std::begin(m_container), std::end(m_container), [](Target* t) { delete t; } );
+		std::for_each(std::begin(m_container), std::end(m_container), [](IConnection* c) { delete c; } );
 	}
 };
 
-template <typename Target>
-using PointerList_t =  ConnectionContainer<Target*, std::list<Target*>>;
-
-template <typename Target>
-using PointerHashTable_t =  ConnectionContainer<Target*, boost::unordered_set<Target*>>;
+using PointerList_t =  ConnectionContainer<std::list<IConnection*>>;
+using PointerHashTable_t =  ConnectionContainer<boost::unordered_set<IConnection*>>;
 template
 <
 	size_t DEFAULT_CONNECTION_COUNT,
-	typename Endpoint,
 	typename Container,
 	typename Creator,
 	typename Lock,
@@ -351,10 +345,10 @@ public:
 			m_availConnections.Add(m_creator());
 	}
 
-	Endpoint* Get()
+	IConnection* Get()
 	{
 		Locker<Lock> locker(m_lock);
-		Endpoint* e = nullptr;
+		IConnection* e = nullptr;
 
 		// Is there something in the list of available connections?
 		if (m_availConnections.IsEmpty())
@@ -373,7 +367,7 @@ public:
 		return e;
 	}
 
-	void Release(Endpoint* e)
+	void Release(IConnection* e)
 	{
 		Locker<Lock> locker(m_lock);
 
