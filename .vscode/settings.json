@@ -83,6 +83,7 @@
         "future": "cpp",
         "numeric": "cpp",
         "shared_mutex": "cpp",
-        "variant": "cpp"
+        "variant": "cpp",
+        "cfenv": "cpp"
     }
 }

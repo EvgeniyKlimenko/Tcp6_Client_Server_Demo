@@ -112,6 +112,11 @@ void CSehException::ResolveDescription()
 
 #endif //_WIN64
 
+std::string SystemException::GetErrorDescription(int err)
+{
+	return std::string(strerror(err));
+}
+
 SystemException::SystemException(int err) : m_err(err) {}
     
 SystemException::SystemException(const SystemException& other)
@@ -131,5 +136,5 @@ SystemException& SystemException::operator= (const SystemException& other)
 
 const char* SystemException::what() const noexcept
 {
-	return strerror(m_err);
+	return SystemException::GetErrorDescription(m_err).c_str();
 }

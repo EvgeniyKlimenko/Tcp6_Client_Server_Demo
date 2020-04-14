@@ -3,6 +3,37 @@
 
 #include "CommonDefinitions.h"
 
+class SystemException final : public std::exception
+{
+    int m_err;
+public:
+    SystemException(int err);
+    SystemException(const SystemException& other);
+    SystemException& operator= (const SystemException& other);
+    virtual ~SystemException () = default;
+    
+    const char* what()  const noexcept override;
+
+	static std::string GetErrorDescription(int err);
+};
+
+template <typename Exception>
+class ExceptionDecorator final : public std::exception
+{
+	Exception m_ex;
+public:
+	ExceptionDecorator& operator= (const ExceptionDecorator& other)
+	{
+		if (this != &other) m_ex = other.m_ex;
+		return *this;
+	}
+	virtual ~ExceptionDecorator() = default;
+
+	const char* what() const noexcept override { return m_ex.what(); }
+
+	static std::string GetErrorDescription();
+};
+
 #if defined(_WIN64)
 class CWindowsException final : public std::exception
 {
@@ -57,18 +88,40 @@ private:
 	std::string m_description;
 };
 
-#endif // _WIN64
-
-class SystemException final : public std::exception
+template <>
+class ExceptionDecorator<CWindowsException> final
 {
-    int m_err;
+	CWindowsException m_ex;
 public:
-    SystemException(int err);
-    SystemException(const SystemException& other);
-    SystemException& operator= (const SystemException& other);
-    virtual ~SystemException () = default;
-    
-    const char* what()  const noexcept override;
+	ExceptionDecorator() : m_ex(WSAGetLastError()) {}
+	ExceptionDecorator(int e) : m_ex((int)e) {}
+
+	static std::string GetErrorDescription()
+	{
+		return CWindowsException::GetErrorDescription(WSAGetLastError());
+	}
 };
+
+using CWinSockExceptionDecorator =  ExceptionDecorator<CWindowsException>;
+
+#elif defined(__linux__)
+
+template <>
+class ExceptionDecorator<SystemException> final
+{
+	SystemException m_ex;
+public:
+	ExceptionDecorator() : m_ex(errno) {}
+	ExceptionDecorator(int e) : m_ex(e) {}
+
+	static std::string GetErrorDescription()
+	{
+		return SystemException::GetErrorDescription(errno);
+	}
+};
+
+using SystemExceptionDecorator =  ExceptionDecorator<SystemException>;
+
+#endif // _WIN64
 
 #endif // __EXCEPTION_H__

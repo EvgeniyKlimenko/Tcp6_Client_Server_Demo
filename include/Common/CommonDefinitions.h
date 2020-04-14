@@ -68,10 +68,18 @@ extern char* program_invocation_short_name;
 
 #define USE_NATIVE
 
-#if defined ( _WIN64 )
+#if defined (_WIN64)
 
 using _tstring = std::basic_string<_TCHAR>;
 using _tstringstream = std::basic_stringstream<_TCHAR>;
+
+#elif defined(__linux__)
+
+// A stub for socket subsystem initialization, 
+// corresponds to null object design pattern.
+// Unlike Windows, Linux socket subsystem doesn't
+// requere special initialization.
+struct SubsysIniterNullObj {};
 
 #endif // _WIN64
 

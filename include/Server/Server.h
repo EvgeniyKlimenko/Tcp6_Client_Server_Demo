@@ -197,12 +197,6 @@ using CurrentServer = CWinSockServer;
 
 #elif defined(__linux__)
 
-// A stub for socket subsystem initialization, 
-// corresponds to null object design pattern.
-// Unlike Windows, Linux socket subsystem doesn't
-// requere special initialization.
-struct SubsysIniterNullObj {};
-
 class LinuxServer final : public SystemServer
 <
     LinuxServer,
