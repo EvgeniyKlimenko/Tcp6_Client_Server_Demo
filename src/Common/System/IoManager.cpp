@@ -20,8 +20,7 @@ CIoManager::~CIoManager()
 
 void CIoManager::Bind(IEndpoint* pEndpoint)
 {
-	if(!pEndpoint || !pEndpoint->IsValid())
-		throw CWindowsException(ERROR_INVALID_PARAMETER);
+	if(!pEndpoint) throw CWindowsException(ERROR_INVALID_PARAMETER);
 
 	// Associate endpoint with a completion port.
 	if(!CreateIoCompletionPort(reinterpret_cast<HANDLE>(pEndpoint->Get()), m_hPort,

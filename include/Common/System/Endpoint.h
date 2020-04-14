@@ -10,7 +10,6 @@ struct IEndpoint
 {
 	virtual ~IEndpoint() = default;
 
-	virtual bool IsValid() = 0;
 	virtual SOCKET Get() = 0;
 	virtual LPWSAOVERLAPPED GetContext() = 0;
 	virtual void ResetContext() = 0;
@@ -37,7 +36,6 @@ public:
 
 	virtual ~CEndpointBase() = default;
 
-	bool IsValid() override { return m_impl.IsValid(); }
 	SOCKET Get() override { return m_impl.Get(); }
 	LPWSAOVERLAPPED GetContext() override { return m_impl.GetContext(); }
 	void ResetContext() override { m_impl.ResetContext(); }
@@ -91,11 +89,6 @@ public:
 	~CEndpointImplBase()
 	{
 		m_deleter(m_hEndpoint);
-	}
-
-	bool IsValid()
-	{
-		return m_hEndpoint && (m_hEndpoint != (HandleType)~0);
 	}
 
 	HandleType Get()
@@ -199,8 +192,13 @@ public:
 		m_impl.Complete(dataTransferred);
 	}
 
-	void AcceptAsync(IConnection* connection) {m_impl.Accept(connection);}
-	std::string GetPeerInfo() {return m_impl.GetPeerInfo();}
+	bool AcceptAsync(IConnection* connection)
+	{
+		m_impl.Accept(connection);
+		return true;
+	}
+
+	std::string GetPeerInfo() { return m_impl.GetPeerInfo(); }
 };
 
 class CConnection final : public CConnectionBase<CConnectionImpl>
@@ -228,7 +226,6 @@ struct IEndpoint
 {
 	virtual ~IEndpoint() = default;
 
-	virtual bool IsValid() = 0;
 	virtual int Get() = 0;
 	virtual void Complete() = 0;
 };
@@ -237,10 +234,163 @@ struct IConnection : IEndpoint
 {
 	virtual ~IConnection() = default;
 
-	virtual void ReadAsync() = 0;
-	virtual void WriteAsync(const std::string& data) = 0;
+	virtual void Set(int fd) = 0;
+	virtual size_t ReadAsync() = 0;
+	virtual size_t WriteAsync(const std::string& data) = 0;
 	virtual std::string GetInputData() = 0;
 };
+
+template <typename Impl, typename Interface = IEndpoint>
+class EndpointBase : public Interface
+{
+public:
+	template<typename... Args>
+	EndpointBase(Args&&... args)
+	: m_impl(std::forward<Args>(args)...)
+	{}
+
+	virtual ~EndpointBase() = default;
+
+	int Get() override { return m_impl.Get(); }
+
+protected:
+	Impl m_impl;
+};
+
+template <typename Impl>
+class ConnectionBase : public EndpointBase<Impl, IConnection>
+{
+	using Base_t = EndpointBase<Impl, IConnection>;
+public:
+	template<typename... Args>
+	ConnectionBase(Args&&... args)
+	: Base_t(std::forward<Args>(args)...)
+	{}
+
+	virtual ~ConnectionBase() = default;
+
+	void Set(int fd) override { this->m_impl.Set(fd); }
+	size_t ReadAsync() override { return this->m_impl.Read(); }
+	size_t WriteAsync(const std::string& data) override { return this->m_impl.Write(data); }
+	std::string GetInputData() override { return this->m_impl.GetInputData(); }
+};
+
+template <typename Derived>
+class EndpointImplBase
+{
+protected:
+	static const size_t MAX_BUF_SIZE = 1024;
+	int m_endpoint;
+
+	CRTP_SELF(Derived)
+
+public:
+	EndpointImplBase()
+		: m_endpoint(0)
+	{}
+
+	~EndpointImplBase()
+	{
+		close(m_endpoint);
+	}
+
+	int Get()
+	{
+		return m_endpoint;
+	}
+
+	void Complete(IConnection* connection)
+	{
+		Self().Complete(connection);
+	}
+};
+
+using AcceptCallback_t = boost::function<void (IConnection*)>;
+using OperationCallback_t = boost::function<size_t (IConnection*)>;
+
+class AcceptorImpl final : public EndpointImplBase<AcceptorImpl>
+{
+    addrinfo* m_addrInfo;
+	sockaddr_in6 m_peerAddr;
+	AcceptCallback_t m_acceptCallback;
+	IConnection* m_newConnection;
+
+	using Base_t = EndpointImplBase<AcceptorImpl>;
+
+public:
+    AcceptorImpl(uint16_t port, AcceptCallback_t&& acceptCallback);
+    ~AcceptorImpl();
+
+    void Complete();
+
+	bool Accept(IConnection* connection);
+	std::string GetPeerInfo();
+};
+
+class ConnectionImpl final :  public EndpointImplBase<ConnectionImpl>
+{
+	enum State
+	{
+		initial,
+		associated,
+		readPending,
+		writePending
+	};
+
+	using StateCallbackSequence_t = boost::unordered_map<State, OperationCallback_t>;
+
+public:
+	using Buffer_t = boost::array<char, MAX_BUF_SIZE>;
+
+	ConnectionImpl(
+		OperationCallback_t&& readCallback,
+		OperationCallback_t&& writeCallback);
+
+	~ConnectionImpl();
+
+	void Complete(IConnection* connection);
+
+	void Set(int fd);
+	size_t Read();
+	size_t Write(const std::string& data);
+	std::string GetInputData();
+
+private:
+	void SwitchTo(State s) {m_curState = s;}	
+	void Reset();
+
+	State m_curState;
+	Buffer_t m_readBuf;
+	Buffer_t m_writeBuf;
+	StateCallbackSequence_t m_callbacks;
+};
+
+class Acceptor final : public EndpointBase<AcceptorImpl>
+{
+	using Base_t = EndpointBase<AcceptorImpl>;
+public:
+	Acceptor(unsigned short port, AcceptCallback_t&& acceptCallback)
+	: Base_t(port, std::forward<AcceptCallback_t>(acceptCallback)) {}
+
+	void Complete() override { m_impl.Complete(); }
+	bool AcceptAsync(IConnection* connection) { return m_impl.Accept(connection); }
+	std::string GetPeerInfo() { return m_impl.GetPeerInfo(); }
+};
+
+class Connection final : public ConnectionBase<ConnectionImpl>
+{
+	using Base_t = ConnectionBase<ConnectionImpl>;
+public:
+	Connection(
+		OperationCallback_t&& readCallback,
+		OperationCallback_t&& writeCallback)
+	: Base_t(
+		std::forward<OperationCallback_t>(readCallback),
+		std::forward<OperationCallback_t>(writeCallback)) {}
+
+	void Complete() override { m_impl.Complete(this); }
+};
+
 
 #endif // _WIN64
 

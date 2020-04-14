@@ -6,6 +6,8 @@
 #include <sys/sysinfo.h>
 #include <sys/file.h>
 #include <sys/epoll.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <signal.h>

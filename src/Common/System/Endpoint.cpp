@@ -76,7 +76,7 @@ void CAcceptorImpl::Complete(ULONG)
 	// In this case a callback from the server called.
 	// We use server callback because accept operation should be handled
 	// by the whole server, not an acceptor only. Thereby only the acceptor
-	// is able to track accpet operation completion.
+	// is able to track accept operation completion.
 	m_acceptCallback(m_newConnection);
 }
 
@@ -285,6 +285,205 @@ void CConnectionImpl::Reset()
 {
 	m_curState = initial;
 	ResetContext();
+}
+
+#elif defined(__linux__)
+
+AcceptorImpl::AcceptorImpl(uint16_t port, AcceptCallback_t&& acceptCallback)
+: m_acceptCallback(acceptCallback)
+, m_newConnection(nullptr)
+{
+     // Create acceptor endpoint.
+    m_endpoint = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
+	if (m_endpoint < 0) throw SystemException(errno);
+
+	// Switch socket to non-blocking mode to take advantage of epoll API.
+	int nonBlockMode = 1;
+	if (ioctl(m_endpoint, FIONBIO, &nonBlockMode) < 0) throw SystemException(errno);
+
+	// Reuse server address to get read of possible errors the previous connection has not been fully disconnected.
+	int reuseAddr = 1;
+	if (setsockopt(m_endpoint, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuseAddr, sizeof(int)) < 0)
+		throw SystemException(errno);
+
+	// Initialize IPv6 address data.
+    addrinfo hint = {};
+    hint.ai_flags = AI_PASSIVE | AI_NUMERICHOST;
+    hint.ai_family = AF_INET6;
+    hint.ai_socktype = SOCK_STREAM;
+    hint.ai_protocol = IPPROTO_TCP;
+
+	std::stringstream portHint;
+	portHint << port;
+
+    int res = getaddrinfo("::1", portHint.str().c_str(), &hint, &m_addrInfo);
+    if(res) throw SystemException(res);
+
+	// Bind endpoint to the IPv6 address.
+    if (bind(m_endpoint, m_addrInfo->ai_addr, static_cast<int>(m_addrInfo->ai_addrlen)) < 0)
+        throw SystemException(errno);
+
+	// Start listening to peer connections.
+    if (listen(m_endpoint, 1) < 0)
+		throw SystemException(errno);
+}
+    
+AcceptorImpl::~AcceptorImpl()
+{
+	if(m_addrInfo)
+		freeaddrinfo(m_addrInfo);
+}
+
+void AcceptorImpl::Complete()
+{
+	// This callback triggded only when a new connection accepted.
+	// In this case a callback from the server called.
+	// We use server callback because accept operation should be handled
+	// by the whole server, not an acceptor only. Thereby only the acceptor
+	// is able to track accept operation completion.
+	m_acceptCallback(m_newConnection);
+}
+
+bool AcceptorImpl::Accept(IConnection* connection)
+{
+	socklen_t peerAddrLen = static_cast<socklen_t>(sizeof(m_peerAddr));
+	int res = accept(m_endpoint, reinterpret_cast<sockaddr*>(&m_peerAddr), &peerAddrLen);
+	if (res < 0)
+	{
+		// Triggered with empty queue of listening sockets, or socket has just been closed.
+		if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ECONNABORTED)
+			return false;
+		else
+			throw SystemException(errno);
+	}
+	else if (!res)
+	{
+		// Socket closed.
+		return false;
+	}
+
+	// Now connection instance got associated with socket descriptor and switched to non-blocking mode.
+	m_newConnection = connection;
+	m_newConnection->Set(res);
+	return true;
+}
+	
+std::string AcceptorImpl::GetPeerInfo()
+{
+	std::string hostName;
+	std::string serviceName;
+
+	hostName.resize(NI_MAXHOST);
+	serviceName.resize(NI_MAXSERV);
+
+	int res = getnameinfo(reinterpret_cast<sockaddr*>(&m_peerAddr), static_cast<int>(sizeof(m_peerAddr)),
+		const_cast<char*>(hostName.c_str()), static_cast<int>(hostName.length()),
+		const_cast<char*>(serviceName.c_str()), static_cast<int>(serviceName.length()), 0);
+	if (res) throw SystemException(res);
+
+	hostName.resize(strlen(hostName.c_str()));
+	serviceName.resize(strlen(serviceName.c_str()));
+
+	std::stringstream peerInfo;
+	peerInfo << "Peer " << hostName << ":" << serviceName << " connected.";
+	return peerInfo.str();
+}
+
+ConnectionImpl::ConnectionImpl(
+	OperationCallback_t&& readCallback,
+	OperationCallback_t&& writeCallback) 
+: m_curState(initial)
+{
+	std::fill(std::begin(m_readBuf), std::end(m_readBuf), 0);
+	std::fill(std::begin(m_writeBuf), std::end(m_writeBuf), 0);
+
+	// Establish state callbacks to be called as the IO opration got completed.
+	m_callbacks.emplace(readPending, readCallback);
+	m_callbacks.emplace(writePending, writeCallback);
+}
+
+ConnectionImpl::~ConnectionImpl()
+{
+	Reset();
+}
+
+void ConnectionImpl::Set(int fd)
+{
+	assert(fd);
+	m_endpoint = fd;
+
+	int nonBlockMode = 1;
+	if (ioctl(m_endpoint, FIONBIO, &nonBlockMode) < 0) throw SystemException(errno);
+
+	SwitchTo(associated);
+}
+
+size_t ConnectionImpl::Read()
+{
+	int bytesRead = read(m_endpoint, &m_readBuf[0], MAX_BUF_SIZE);
+	if (bytesRead < 0)
+	{
+		// Try to read once again.
+		if (errno == EAGAIN) return false;
+		else throw SystemException(errno);
+	}
+	else if(!bytesRead)
+	{
+		// Remote side disconnected - reset connection instance to be reused some later.
+		Reset();
+	}
+
+	SwitchTo(readPending);
+
+	return bytesRead;
+}
+	
+size_t ConnectionImpl::Write(const std::string& data)
+{
+	// Copy output data into the buffer without buffer reallocation.
+	size_t dataSize = data.length();
+	std::copy(std::begin(data), std::end(data), std::begin(m_writeBuf));
+
+	int bytesWritten = write(m_endpoint, &m_writeBuf, dataSize);
+	if (bytesWritten < 0) throw SystemException(errno);
+
+	SwitchTo(writePending);
+
+	return bytesWritten;
+}
+
+std::string ConnectionImpl::GetInputData()
+{
+	assert(m_curState == readPending);
+
+	// Copy input data until the \0 symbol occurred.
+	auto endPos = std::find(std::begin(m_readBuf), std::end(m_readBuf), 0);
+	std::string data;
+	data.resize(std::distance(std::begin(m_readBuf), endPos));
+	std::copy(std::begin(m_readBuf), endPos, std::begin(data));
+
+	return data;
+}
+
+void ConnectionImpl::Complete(IConnection* connection)
+{
+	bool dataExchange = (m_curState == readPending) || (m_curState == writePending);
+	assert(dataExchange);
+
+	size_t dataSize = (m_callbacks[m_curState])(connection);
+
+	// After IO operation processing only part of data zeroed out.
+	// A size of this part is the same as length of data just written.
+	Buffer_t& buf = (m_curState == readPending) ? m_readBuf : m_writeBuf;
+	auto endPos = std::begin(buf) + dataSize;
+	std::fill(std::begin(buf), endPos, 0);
+}
+
+void ConnectionImpl::Reset()
+{
+	close(m_endpoint);
+	m_endpoint = 0;
+	SwitchTo(initial);
 }
 
 #endif

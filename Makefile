@@ -24,7 +24,6 @@ LINKTOOL := link.exe
 PLATFORM_SEP := \\
 INC_OPT := /I 
 C_FLAGS := /c /DWIN64 /D_WIN64 /DUNICODE /D_UNICODE /DDEBUG /D_DEBUG /D_CRT_SECURE_NO_DEPRECATE /ZI /FS /W4 /EHa /GR /MTd /std:c++14
-L_FLAGS := /MTd
 #PRECOMPILED_HEADER := CommonDefinitions.h 
 MSVC_HEADERS_PATH := "C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/VC/Tools/MSVC/14.24.28314/include"
 SHARED_HEADERS_PATH := "C:/Program Files (x86)/Windows Kits/10/Include/10.0.18362.0/shared"
@@ -52,7 +51,6 @@ LIBTOOL := ar
 LINKTOOL := $(CC)
 INC_OPT := -I
 C_FLAGS := -std=c++14 -Wall -Wextra -g
-L_FLAGS := -pthread
 OUT_FILE := -o  
 LIB_OUT_FILE :=
 MKDIR := mkdir -p
@@ -132,7 +130,7 @@ define link_executable
 	
 	$(if $(OS),
 		$(eval L_OPTS := /MACHINE:x64 /DEBUG:FULL /SUBSYSTEM:CONSOLE /OPT:NOICF /OPT:NOREF $(LIB_DIRS) /LIBPATH:$(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(COMMON)) $(COMMON)$(LIB_EXT) boost_system-vc142-mt-gd-x64-1_72$(LIB_EXT) ws2_32$(LIB_EXT)),
-		$(eval L_OPTS := -L$(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(COMMON)) -l$(COMMON) -lboost_system -lboost_thread -lboost_program_options)
+		$(eval L_OPTS := -L$(abspath $(LIB)$(SEP)$(SYSTEM)$(SEP)$(COMMON)) -l$(COMMON) -lpthread -lboost_system -lboost_thread -lboost_program_options)
 	)
 	$(if $(OS),
 		$(eval ADDITIONAL_STEP :=),

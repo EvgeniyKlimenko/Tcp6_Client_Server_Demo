@@ -61,6 +61,33 @@ public:
     }
 };
 
+#elif defined(__linux__)
+
+class LinuxLock : public GenericLock<LinuxLock>
+{
+    pthread_mutex_t m_mtx;
+public:
+    LinuxLock()
+    {
+        pthread_mutex_init(&m_mtx, nullptr);
+    }
+    
+    ~LinuxLock()
+    {
+        pthread_mutex_destroy(&m_mtx);
+    }
+
+    void Lock()
+    {
+        pthread_mutex_lock(&m_mtx);
+    }
+
+    void Unlock()
+    {
+        pthread_mutex_unlock(&m_mtx);
+    }
+};
+
 #endif // _WIN64
 
 #endif // __SYNCHRONIZATION_H__

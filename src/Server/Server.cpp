@@ -123,3 +123,78 @@ void AsioServer::OnAccept(AsioServer::Connection::Pointer_t connection, const bo
     if (!err) connection->Start();
     StartListening();
 }
+
+#if defined (USE_NATIVE)
+
+#if defined (_WIN64)
+
+IConnection* CWinSockServer::CreateConnection()
+{
+    IConnection* connection = new (std::nothrow) CConnection(
+        boost::bind(&CWinSockServer::OnReadComplete, this, _1),
+        boost::bind(&CWinSockServer::OnWriteComplete, this, _1),
+        boost::bind(&CWinSockServer::OnDisconnectComplete, this, _1));
+    if (!connection) throw std::bad_alloc();
+
+    // Associate newly created connection with IO completion port
+    // so that it's ready to asynchronous IO just now. 
+    m_ioMgr.Bind(connection);
+
+    return connection;
+}
+
+void CWinSockServer::OnReadComplete(IConnection* connection)
+{
+    // Asynchronous data reading just completed - get the data.
+    std::string data = connection->GetInputData();
+    std::cout << "Data coming from peer: " << data << std::endl;
+    // Write the back back to the peer.
+    connection->WriteAsync(data);
+}
+
+void CWinSockServer::OnWriteComplete(IConnection* connection)
+{
+    // Asynchronous data writing just completed - start reading new portion.
+    connection->ReadAsync();
+}
+
+void CWinSockServer::OnDisconnectComplete(IConnection* connection)
+{
+    // Connection has been closed by peer - release it and prepare for reuse.
+    m_cnMgr.Release(connection); 
+}
+
+#elif defined(__linux__)
+
+IConnection* LinuxServer::CreateConnection()
+{
+    IConnection* connection = new (std::nothrow) Connection(
+        boost::bind(&LinuxServer::OnReadComplete, this, _1),
+        boost::bind(&LinuxServer::OnWriteComplete, this, _1));
+    if (!connection) throw std::bad_alloc();
+
+    // Associate newly created connection with IO completion port
+    // so that it's ready to asynchronous IO just now. 
+    m_ioMgr.Bind(connection);
+
+    return connection;
+}
+
+size_t LinuxServer::OnReadComplete(IConnection* connection)
+{
+    // Asynchronous data reading just completed - get the data.
+    std::string data = connection->GetInputData();
+    std::cout << "Data coming from peer: " << data << std::endl;
+    // Write the back back to the peer.
+    return connection->WriteAsync(data);
+}
+
+size_t LinuxServer::OnWriteComplete(IConnection* connection)
+{
+    // Asynchronous data writing just completed - start reading new portion.
+    return connection->ReadAsync();
+}
+
+#endif // _WIN64
+
+#endif // USE_NATIVE

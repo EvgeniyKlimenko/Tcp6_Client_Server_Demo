@@ -7,6 +7,7 @@
 #include "System/IoManager.h"
 #include "System/ThreadPool.h"
 #include "System/Synchronization.h"
+
 class AsioServer final : public AppLogic<AsioServer, true>
 {
 class Connection : public boost::enable_shared_from_this<Connection>
@@ -62,6 +63,7 @@ private:
 
 template
 <
+    typename Derived,
     typename Acceptor,
     typename ThreadPool,
     typename IoManager,
@@ -69,15 +71,16 @@ template
     typename ConnectionManager,
     typename SocketSubsystemIniter
 >
-class SystemServer final : public AppLogic
+class SystemServer : public AppLogic
 <
     SystemServer
     <
-        Acceptor, ThreadPool, IoManager, Connection,
-        ConnectionManager, SocketSubsystemIniter
+        Derived, Acceptor, ThreadPool, IoManager,
+        Connection, ConnectionManager, SocketSubsystemIniter
     >, true
 >
 {
+    CRTP_SELF(Derived)
 public:
     SystemServer(unsigned short port)
     : m_port(port)
@@ -113,7 +116,29 @@ public:
         std::cout << "System API based server finished." << std::endl;
     }
 
-private:
+    IConnection* CreateConnection()
+    {
+        return Self().CreateConnection();
+    }
+
+    bool DoAccept()
+    {
+        return m_acceptor.AcceptAsync(m_cnMgr.Get());
+    }
+
+    void OnAcceptComplete(IConnection* newConnection)
+    {
+        // Print new peer.
+        std::cout << m_acceptor.GetPeerInfo() << std::endl;
+        // Start tracking next connection.
+        if (DoAccept())
+        {
+            // Start read IO on new connection.
+            newConnection->ReadAsync();
+        }
+    }
+
+protected:
     void AsyncWorkCallback()
     {
         try
@@ -127,58 +152,7 @@ private:
         }
     }
 
-    void OnAcceptComplete(IConnection* newConnection)
-    {
-        // Print new peer.
-        std::cout << m_acceptor.GetPeerInfo() << std::endl;
-        // Start tracking next connection.
-        DoAccept();
-        // Start read IO on new connection.
-        newConnection->ReadAsync();
-    }
-
-    void OnReadComplete(IConnection* connection)
-    {
-        // Asynchronous data reading just completed - get the data.
-        std::string data = connection->GetInputData();
-        std::cout << "Data coming from peer: " << data << std::endl;
-        // Write the back back to the peer.
-        connection->WriteAsync(data);
-    }
-
-    void OnWriteComplete(IConnection* connection)
-    {
-        // Asynchronous data writing just completed - start reading new portion.
-        connection->ReadAsync();
-    }
-
-    void OnDisconnectComplete(IConnection* connection)
-    {
-        // Connection has been closed by peer - release it and prepare for reuse.
-        m_cnMgr.Release(connection); 
-    }
-
-    IConnection* CreateConnection()
-    {
-        IConnection* connection = new (std::nothrow) Connection(
-            boost::bind(&SystemServer::OnReadComplete, this, _1),
-            boost::bind(&SystemServer::OnWriteComplete, this, _1),
-            boost::bind(&SystemServer::OnDisconnectComplete, this, _1));
-        if (!connection) throw std::bad_alloc();
-
-        // Associate newly created connection with IO completion port
-        // so that it's ready to asynchronous IO just now. 
-        m_ioMgr.Bind(connection);
-
-        return connection;
-    }
-
-    void DoAccept()
-    {
-        m_acceptor.AcceptAsync(m_cnMgr.Get());
-    }
-
-private:
+protected:
     unsigned short m_port;
     SocketSubsystemIniter m_sockIniter;
     Acceptor m_acceptor;
@@ -187,11 +161,13 @@ private:
     ConnectionManager m_cnMgr;
 };
 
-
 #if defined(USE_NATIVE)
+
 #if defined(_WIN64)
-using CWinSockServer = SystemServer
+
+class CWinSockServer final : public SystemServer
 <
+    CWinSockServer,
     CAcceptor,
     CThreadPool,
     CIoManager,
@@ -203,13 +179,65 @@ using CWinSockServer = SystemServer
         CWindowsLock, ScopedLocker
     >,
     CWinSockIniter
->;
+>
+{
+public:
+    CWinSockServer(unsigned short port)
+    : SystemServer(port) {}
+
+    IConnection* CreateConnection();
+
+private:
+    void OnReadComplete(IConnection* connection);
+    void OnWriteComplete(IConnection* connection);
+    void OnDisconnectComplete(IConnection* connection);
+};
+
 using CurrentServer = CWinSockServer;
+
 #elif defined(__linux__)
-using CurrentServer = AsioServer;
-#endif
+
+// A stub for socket subsystem initialization, 
+// corresponds to null object design pattern.
+// Unlike Windows, Linux socket subsystem doesn't
+// requere special initialization.
+struct SubsysIniterNullObj {};
+
+class LinuxServer final : public SystemServer
+<
+    LinuxServer,
+    Acceptor,
+    ThreadPool,
+    IoManager,
+    Connection,
+    ConnectionManager
+    < 
+        1, PointerList_t,
+        boost::function<IConnection* (void)>,
+        LinuxLock, ScopedLocker
+    >,
+    SubsysIniterNullObj
+>
+{
+public:
+    LinuxServer(unsigned short port)
+    : SystemServer(port) {}
+
+    IConnection* CreateConnection();
+
+private:
+    size_t OnReadComplete(IConnection* connection);
+    size_t OnWriteComplete(IConnection* connection);
+};
+
+using CurrentServer = LinuxServer;
+
+#endif // _WIN64
+
 #else
+
 using CurrentServer = AsioServer;
+
 #endif // USE_NATIVE
 
-#endif // _SERVER_H__
+#endif // __SERVER_H__
