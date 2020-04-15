@@ -32,6 +32,16 @@ private:
 
 class IoManager final
 {
+	// Use this wrapper class to facilitate adding/removing epoll events. 
+	class EventWrapper
+	{
+		int m_fd;
+	public:
+		EventWrapper() : m_fd(0) {}
+		void Set(int fd) { m_fd = fd; }
+		void DoOp(int opcode, uint32_t events, IEndpoint* endpoint);
+		void DoOp(int opcode, uint32_t events, int fd, void* context = nullptr);
+	};
 public:
 	// Create new epoll.
 	IoManager(size_t threadCount);
@@ -39,6 +49,8 @@ public:
 
 	// Bind endpoint to an epoll.
 	void Bind(IEndpoint* endpoint);
+	// Unbind endpoint from an epoll.
+	void Unbind(IEndpoint* endpoint);
 	// Post exit signal to finish up thread routines.
 	void Stop();
 
@@ -47,11 +59,11 @@ public:
 
 private:
 	enum ExitEnds {reader, writer};
-
 	static const size_t MAX_ENDPOINTS = 0xffff;
 	size_t m_threadCount;
 	int m_fd;
 	int m_exiters[2];
+	EventWrapper m_ewr;
 };
 
 #endif // _WIN64

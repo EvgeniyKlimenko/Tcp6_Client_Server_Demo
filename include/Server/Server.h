@@ -84,18 +84,19 @@ class SystemServer : public AppLogic
 public:
     SystemServer(unsigned short port)
     : m_port(port)
-    , m_acceptor(m_port, boost::bind(&SystemServer::OnAcceptComplete, this, _1))
     , m_threadPool(boost::bind(&SystemServer::AsyncWorkCallback, this))
     , m_ioMgr(m_threadPool.GetThreadCount())
     , m_cnMgr(boost::bind(&SystemServer::CreateConnection, this)) 
     {
-        m_ioMgr.Bind(&m_acceptor);
+        m_acceptor = CreateAcceptor();
+        m_ioMgr.Bind(m_acceptor);
     }
 
     ~SystemServer()
     {
         // GCC doesn't see member function of the base template class.
         this->Stop();
+        delete m_acceptor;
     }
 
     void OnRun()
@@ -121,15 +122,20 @@ public:
         return Self().CreateConnection();
     }
 
+    IAcceptor* CreateAcceptor()
+    {
+        return Self().CreateAcceptor();
+    }
+
     bool DoAccept()
     {
-        return m_acceptor.AcceptAsync(m_cnMgr.Get());
+        return m_acceptor->AcceptAsync(m_cnMgr.Get());
     }
 
     void OnAcceptComplete(IConnection* newConnection)
     {
         // Print new peer.
-        std::cout << m_acceptor.GetPeerInfo() << std::endl;
+        std::cout << m_acceptor->GetPeerInfo() << std::endl;
         // Start tracking next connection.
         if (DoAccept())
         {
@@ -155,10 +161,10 @@ protected:
 protected:
     unsigned short m_port;
     SocketSubsystemIniter m_sockIniter;
-    Acceptor m_acceptor;
     ThreadPool m_threadPool;
     IoManager m_ioMgr;
     ConnectionManager m_cnMgr;
+    IAcceptor* m_acceptor;
 };
 
 #if defined(USE_NATIVE)
@@ -186,6 +192,7 @@ public:
     : SystemServer(port) {}
 
     IConnection* CreateConnection();
+    IAcceptor* CreateAcceptor();
 
 private:
     void OnReadComplete(IConnection* connection);
@@ -218,10 +225,20 @@ public:
     : SystemServer(port) {}
 
     IConnection* CreateConnection();
+    IAcceptor* CreateAcceptor(); 
 
 private:
     size_t OnReadComplete(IConnection* connection);
     size_t OnWriteComplete(IConnection* connection);
+
+    // Associate newly created connection with IO manager
+    // so that it's ready to asynchronous IO just now. 
+    void StartAsyncIo(IEndpoint* endpoint);
+
+    // Disassociate connection from IO manager so that
+    // it won't be taking part in asynchronouse IO.
+    // Called right before the resetting connection to initial state.   
+    void StopAsyncIo(IEndpoint* endpoint);
 };
 
 using CurrentServer = LinuxServer;

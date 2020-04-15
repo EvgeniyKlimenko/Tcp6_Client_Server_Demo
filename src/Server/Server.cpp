@@ -48,7 +48,6 @@ void AsioServer::Connection::OnReadComplete(const boost::system::error_code& err
         // Write this message back to the client.
         m_sock.async_write_some(boost::asio::buffer(m_data, BUF_SIZE), m_writeCallback);
     }
-    
 }
 
 void AsioServer::Connection::OnWriteComplete(const boost::system::error_code& err, size_t)
@@ -137,10 +136,18 @@ IConnection* CWinSockServer::CreateConnection()
     if (!connection) throw std::bad_alloc();
 
     // Associate newly created connection with IO completion port
-    // so that it's ready to asynchronous IO just now. 
+    // so that it's ready to asynchronous IO right now. 
     m_ioMgr.Bind(connection);
 
     return connection;
+}
+
+IAcceptor* CWinSockServer::CreateAcceptor()
+{
+    IAcceptor* acceptor = new (std::nothrow) CAcceptor(m_port,
+        boost::bind(&SystemServer::OnAcceptComplete, this, _1));
+    if (!acceptor) throw std::bad_alloc();
+    return acceptor;
 }
 
 void CWinSockServer::OnReadComplete(IConnection* connection)
@@ -170,14 +177,21 @@ IConnection* LinuxServer::CreateConnection()
 {
     IConnection* connection = new (std::nothrow) Connection(
         boost::bind(&LinuxServer::OnReadComplete, this, _1),
-        boost::bind(&LinuxServer::OnWriteComplete, this, _1));
+        boost::bind(&LinuxServer::OnWriteComplete, this, _1),
+        boost::bind(&LinuxServer::StartAsyncIo, this, _1),
+        boost::bind(&LinuxServer::StopAsyncIo, this, _1));
     if (!connection) throw std::bad_alloc();
-
-    // Associate newly created connection with IO completion port
-    // so that it's ready to asynchronous IO just now. 
-    m_ioMgr.Bind(connection);
-
     return connection;
+}
+
+IAcceptor* LinuxServer::CreateAcceptor()
+{
+    IAcceptor* acceptor = new (std::nothrow) Acceptor(m_port,
+        boost::bind(&SystemServer::OnAcceptComplete, this, _1),
+        boost::bind(&LinuxServer::StartAsyncIo, this, _1),
+        boost::bind(&LinuxServer::StopAsyncIo, this, _1));
+    if (!acceptor) throw std::bad_alloc();
+    return acceptor;
 }
 
 size_t LinuxServer::OnReadComplete(IConnection* connection)
@@ -192,7 +206,24 @@ size_t LinuxServer::OnReadComplete(IConnection* connection)
 size_t LinuxServer::OnWriteComplete(IConnection* connection)
 {
     // Asynchronous data writing just completed - start reading new portion.
-    return connection->ReadAsync();
+    size_t bytesRead = connection->ReadAsync();
+    if (!bytesRead)
+    {
+        // Remote side disconnected - reset connection instance to be reused some later.
+        connection->Disconnect();
+    }
+
+    return bytesRead;
+}
+
+void LinuxServer::StartAsyncIo(IEndpoint* endpoint)
+{
+    m_ioMgr.Bind(endpoint);
+}
+
+void LinuxServer::StopAsyncIo(IEndpoint* endpoint)
+{
+    m_ioMgr.Unbind(endpoint);
 }
 
 #endif // _WIN64

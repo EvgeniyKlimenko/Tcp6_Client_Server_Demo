@@ -289,8 +289,12 @@ void CConnectionImpl::Reset()
 
 #elif defined(__linux__)
 
-AcceptorImpl::AcceptorImpl(uint16_t port, AcceptCallback_t&& acceptCallback)
-: m_acceptCallback(acceptCallback)
+AcceptorImpl::AcceptorImpl(uint16_t port, AcceptCallback_t&& acceptCallback,
+	StartAsyncIoCallback_t&& startAsyncIoCallback,
+	StopAsyncIoCallback_t&& stopAsyncIoCallback)
+: Base_t(std::forward<StartAsyncIoCallback_t>(startAsyncIoCallback),
+	std::forward<StopAsyncIoCallback_t>(stopAsyncIoCallback))
+, m_acceptCallback(acceptCallback)
 , m_newConnection(nullptr)
 {
      // Create acceptor endpoint.
@@ -391,8 +395,12 @@ std::string AcceptorImpl::GetPeerInfo()
 
 ConnectionImpl::ConnectionImpl(
 	OperationCallback_t&& readCallback,
-	OperationCallback_t&& writeCallback) 
-: m_curState(initial)
+	OperationCallback_t&& writeCallback,
+	StartAsyncIoCallback_t&& startAsyncIoCallback,
+	StopAsyncIoCallback_t&& stopAsyncIoCallback) 
+: Base_t(std::forward<StartAsyncIoCallback_t>(startAsyncIoCallback),
+	std::forward<StopAsyncIoCallback_t>(stopAsyncIoCallback))
+, m_curState(initial)
 {
 	std::fill(std::begin(m_readBuf), std::end(m_readBuf), 0);
 	std::fill(std::begin(m_writeBuf), std::end(m_writeBuf), 0);
@@ -400,11 +408,6 @@ ConnectionImpl::ConnectionImpl(
 	// Establish state callbacks to be called as the IO opration got completed.
 	m_callbacks.emplace(readPending, readCallback);
 	m_callbacks.emplace(writePending, writeCallback);
-}
-
-ConnectionImpl::~ConnectionImpl()
-{
-	Reset();
 }
 
 void ConnectionImpl::Set(int fd)
@@ -426,11 +429,6 @@ size_t ConnectionImpl::Read()
 		// Try to read once again.
 		if (errno == EAGAIN) return false;
 		else throw SystemException(errno);
-	}
-	else if(!bytesRead)
-	{
-		// Remote side disconnected - reset connection instance to be reused some later.
-		Reset();
 	}
 
 	SwitchTo(readPending);
@@ -471,6 +469,12 @@ void ConnectionImpl::Complete(IConnection* connection)
 	assert(dataExchange);
 
 	size_t dataSize = (m_callbacks[m_curState])(connection);
+	if (!dataSize)
+	{
+		// In this case a disconnect operation has been done thus
+		// we shall not do anything more.
+		return; 
+	}
 
 	// After IO operation processing only part of data zeroed out.
 	// A size of this part is the same as length of data just written.

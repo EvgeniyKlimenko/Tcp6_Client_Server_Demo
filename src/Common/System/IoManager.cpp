@@ -67,6 +67,21 @@ void CIoManager::Run()
 
 #elif defined(__linux__)
 
+void IoManager::EventWrapper::DoOp(int opcode, uint32_t events, IEndpoint* endpoint)
+{
+	DoOp(opcode,events, endpoint->Get(), endpoint);
+}
+
+void IoManager::EventWrapper::DoOp(int opcode, uint32_t events, int fd, void* context)
+{
+	epoll_event ev;
+	ev.events = events;
+	ev.data.fd = fd;
+	ev.data.ptr = context;
+	if (epoll_ctl(m_fd, opcode, fd, &ev) < 0)
+		throw SystemException(errno);
+}
+
 IoManager::IoManager(size_t threadCount)
 : m_threadCount(threadCount)
 {
@@ -74,21 +89,20 @@ IoManager::IoManager(size_t threadCount)
 	m_fd = epoll_create1(0);
 	if(m_fd < 0) throw SystemException(errno);
 
+	m_ewr.Set(m_fd);
+
 	// Creating pipes to signal epoll at exit to be woken up from waiting.
 	if(pipe2(m_exiters, O_NONBLOCK) < 0)
 		throw SystemException(errno);
 
 	// Bind exit reader with an epoll.
-	epoll_event ev;
-	ev.events = EPOLLET | EPOLLIN;
-	ev.data.fd = m_exiters[reader];
-	if(epoll_ctl(m_fd, EPOLL_CTL_ADD, m_exiters[reader], &ev) < 0)
-		throw SystemException(errno);
+	m_ewr.DoOp(EPOLL_CTL_ADD, EPOLLET | EPOLLIN, m_exiters[reader]);
 }
 
 IoManager::~IoManager()
 {
 	Stop();
+	m_ewr.DoOp(EPOLL_CTL_DEL, EPOLLET | EPOLLIN, m_exiters[reader]);
 	close(m_exiters[writer]);
 	close(m_exiters[reader]);
 	close(m_fd);
@@ -96,12 +110,17 @@ IoManager::~IoManager()
 
 void IoManager::Bind(IEndpoint* endpoint)
 {
-	epoll_event ev;
-	ev.events = EPOLLET | EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLEXCLUSIVE | EPOLLWAKEUP;
-	ev.data.fd = endpoint->Get();
-	ev.data.ptr = endpoint;
-	if(epoll_ctl(m_fd, EPOLL_CTL_ADD, endpoint->Get(), &ev) < 0)
-		throw SystemException(errno);
+	m_ewr.DoOp(EPOLL_CTL_ADD, EPOLLET | EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLEXCLUSIVE | EPOLLWAKEUP, endpoint);
+}
+
+void IoManager::Unbind(IEndpoint* endpoint)
+{
+	// In kernel versions before 2.6.9, the EPOLL_CTL_DEL operation required
+    // a non-null pointer in event, even though this argument is ignored.
+    // Since Linux 2.6.9, event can be specified as NULL when using
+    // EPOLL_CTL_DEL.  Applications that need to be portable to kernels
+    // before 2.6.9 should specify a non-null pointer in event.
+	m_ewr.DoOp(EPOLL_CTL_DEL, EPOLLET | EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLEXCLUSIVE | EPOLLWAKEUP, endpoint);
 }
 
 void IoManager::Stop()

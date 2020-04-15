@@ -186,7 +186,7 @@ using LinuxClient = SystemClient
 
 #endif
 
-#if defined(USE_NATIVE)
+/*#if defined(USE_NATIVE)
 
 #if defined(_WIN64)
 
@@ -202,7 +202,9 @@ using CurrentClient = LinuxClient;
 
 using CurrentClient = AsioClient;
 
-#endif // USE_NATIVE
+#endif // USE_NATIVE*/
+
+using CurrentClient = AsioClient;
 
 
 #endif // __CLIENT_H__
