@@ -150,6 +150,19 @@ IAcceptor* CWinSockServer::CreateAcceptor()
     return acceptor;
 }
 
+void CWinSockServer::OnAcceptComplete(IConnection* newConnection)
+{
+    // Print new peer.
+    std::cout << m_acceptor->GetPeerInfo() << std::endl;
+
+    // Start tracking next connection.
+    DoAccept();
+
+    // Start read IO on new connection.
+    newConnection->ReadAsync();
+}
+
+
 void CWinSockServer::OnReadComplete(IConnection* connection)
 {
     // Asynchronous data reading just completed - get the data.
@@ -176,8 +189,7 @@ void CWinSockServer::OnDisconnectComplete(IConnection* connection)
 IConnection* LinuxServer::CreateConnection()
 {
     IConnection* connection = new (std::nothrow) Connection(
-        boost::bind(&LinuxServer::OnReadComplete, this, _1),
-        boost::bind(&LinuxServer::OnWriteComplete, this, _1),
+        boost::bind(&LinuxServer::OnDataExchangeComplete, this, _1),
         boost::bind(&LinuxServer::StartAsyncIo, this, _1),
         boost::bind(&LinuxServer::StopAsyncIo, this, _1));
     if (!connection) throw std::bad_alloc();
@@ -194,26 +206,46 @@ IAcceptor* LinuxServer::CreateAcceptor()
     return acceptor;
 }
 
-size_t LinuxServer::OnReadComplete(IConnection* connection)
+void LinuxServer::OnAcceptComplete(IConnection* newConnection)
 {
-    // Asynchronous data reading just completed - get the data.
-    std::string data = connection->GetInputData();
-    std::cout << "Data coming from peer: " << data << std::endl;
-    // Write the back back to the peer.
-    return connection->WriteAsync(data);
+    // Start tracking next connection.
+    if (DoAccept())
+    {
+        // Print new peer.
+        std::cout << m_acceptor->GetPeerInfo() << std::endl;
+
+        // Start read IO on new connection.
+        if (newConnection) newConnection->ReadAsync();
+    }
 }
 
-size_t LinuxServer::OnWriteComplete(IConnection* connection)
+size_t LinuxServer::OnDataExchangeComplete(IConnection* connection)
 {
     // Asynchronous data writing just completed - start reading new portion.
-    size_t bytesRead = connection->ReadAsync();
-    if (!bytesRead)
+    int res = connection->ReadAsync();
+    if (res < 0)
+    {
+        // Nothing to read - return imediately.
+        return 0;
+    }
+
+    if (!res)
     {
         // Remote side disconnected - reset connection instance to be reused some later.
         connection->Disconnect();
+        return 0;
     }
 
-    return bytesRead;
+    // Asynchronous data reading just completed - get the data.
+    std::string data = connection->GetInputData();
+    std::cout << "Data coming from peer: " << data << std::endl;
+
+    // Write the back back to the peer.
+    connection->WriteAsync(data);
+    // Get ready to read next data portion.
+    connection->ReadAsync();
+
+    return res;
 }
 
 void LinuxServer::StartAsyncIo(IEndpoint* endpoint)

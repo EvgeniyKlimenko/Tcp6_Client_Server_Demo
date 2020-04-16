@@ -137,12 +137,15 @@ void IoManager::Stop()
 
 void IoManager::Run()
 {
-    boost::array<epoll_event, MAX_ENDPOINTS> events;
-
     for (;;)
     {
+		boost::array<epoll_event, MAX_ENDPOINTS> events;
         int readyCount = epoll_wait(m_fd, events.data(), MAX_ENDPOINTS, -1);
-		if (readyCount < 0) throw SystemException(errno);
+		if (readyCount < 0)
+		{
+			if (errno == EINTR) continue;
+			else throw SystemException(errno);
+		}
 
         for (int i = 0; i < readyCount; ++i)
         {

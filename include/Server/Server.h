@@ -129,19 +129,16 @@ public:
 
     bool DoAccept()
     {
-        return m_acceptor->AcceptAsync(m_cnMgr.Get());
+        IConnection* connection = m_cnMgr.Get();
+        bool res = m_acceptor->AcceptAsync(connection);
+        if (!res) m_cnMgr.Release(connection);
+
+        return res;
     }
 
     void OnAcceptComplete(IConnection* newConnection)
     {
-        // Print new peer.
-        std::cout << m_acceptor->GetPeerInfo() << std::endl;
-        // Start tracking next connection.
-        if (DoAccept())
-        {
-            // Start read IO on new connection.
-            newConnection->ReadAsync();
-        }
+        Self().OnAcceptComplete(newConnection);
     }
 
 protected:
@@ -194,6 +191,8 @@ public:
     IConnection* CreateConnection();
     IAcceptor* CreateAcceptor();
 
+     void OnAcceptComplete(IConnection* connection); 
+
 private:
     void OnReadComplete(IConnection* connection);
     void OnWriteComplete(IConnection* connection);
@@ -227,9 +226,10 @@ public:
     IConnection* CreateConnection();
     IAcceptor* CreateAcceptor(); 
 
+    void OnAcceptComplete(IConnection* connection);
+
 private:
-    size_t OnReadComplete(IConnection* connection);
-    size_t OnWriteComplete(IConnection* connection);
+    size_t OnDataExchangeComplete(IConnection* connection);
 
     // Associate newly created connection with IO manager
     // so that it's ready to asynchronous IO just now. 

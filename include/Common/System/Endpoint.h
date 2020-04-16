@@ -399,23 +399,13 @@ public:
 
 class ConnectionImpl final :  public EndpointImplBase<ConnectionImpl>
 {
-	enum State
-	{
-		initial,
-		associated,
-		readPending,
-		writePending
-	};
-
 	using Base_t = EndpointImplBase<ConnectionImpl>;
-	using StateCallbackSequence_t = boost::unordered_map<State, OperationCallback_t>;
 
 public:
 	using Buffer_t = boost::array<char, MAX_BUF_SIZE>;
 
 	ConnectionImpl(
-		OperationCallback_t&& readCallback,
-		OperationCallback_t&& writeCallback,
+		OperationCallback_t&& dataExchangeCallback,
 		StartAsyncIoCallback_t&& startAsyncIoCallback,
 		StopAsyncIoCallback_t&& stopAsyncIoCallback);
 
@@ -430,13 +420,13 @@ public:
 	void Reset();
 
 private:
-	void SwitchTo(State s) {m_curState = s;}
+	void SetDataExchangeMode(bool dxm) {m_dataExchange = dxm;}
 
 private:
-	State m_curState;
+	bool m_dataExchange;
+	OperationCallback_t m_dataExchangeCallback;
 	Buffer_t m_readBuf;
 	Buffer_t m_writeBuf;
-	StateCallbackSequence_t m_callbacks;	
 };
 
 class Acceptor final : public AcceptorBase<AcceptorImpl>
@@ -467,13 +457,11 @@ class Connection final : public ConnectionBase<ConnectionImpl>
 	using Base_t = ConnectionBase<ConnectionImpl>;
 public:
 	Connection(
-		OperationCallback_t&& readCallback,
-		OperationCallback_t&& writeCallback,
+		OperationCallback_t&& dataExchangeCallback,
 		StartAsyncIoCallback_t&& startAsyncIoCallback,
 		StopAsyncIoCallback_t&& stopAsyncIoCallback)
 	: Base_t(
-		std::forward<OperationCallback_t>(readCallback),
-		std::forward<OperationCallback_t>(writeCallback),
+		std::forward<OperationCallback_t>(dataExchangeCallback),
 		std::forward<StartAsyncIoCallback_t>(startAsyncIoCallback),
 		std::forward<StopAsyncIoCallback_t>(stopAsyncIoCallback)) {}
 

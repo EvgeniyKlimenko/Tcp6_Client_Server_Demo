@@ -394,20 +394,16 @@ std::string AcceptorImpl::GetPeerInfo()
 }
 
 ConnectionImpl::ConnectionImpl(
-	OperationCallback_t&& readCallback,
-	OperationCallback_t&& writeCallback,
+	OperationCallback_t&& dataExchangeCallback,
 	StartAsyncIoCallback_t&& startAsyncIoCallback,
 	StopAsyncIoCallback_t&& stopAsyncIoCallback) 
 : Base_t(std::forward<StartAsyncIoCallback_t>(startAsyncIoCallback),
 	std::forward<StopAsyncIoCallback_t>(stopAsyncIoCallback))
-, m_curState(initial)
+, m_dataExchange(false)
+, m_dataExchangeCallback(std::forward<OperationCallback_t>(dataExchangeCallback))
 {
 	std::fill(std::begin(m_readBuf), std::end(m_readBuf), 0);
 	std::fill(std::begin(m_writeBuf), std::end(m_writeBuf), 0);
-
-	// Establish state callbacks to be called as the IO opration got completed.
-	m_callbacks.emplace(readPending, readCallback);
-	m_callbacks.emplace(writePending, writeCallback);
 }
 
 void ConnectionImpl::Set(int fd)
@@ -418,7 +414,7 @@ void ConnectionImpl::Set(int fd)
 	int nonBlockMode = 1;
 	if (ioctl(m_endpoint, FIONBIO, &nonBlockMode) < 0) throw SystemException(errno);
 
-	SwitchTo(associated);
+	SetDataExchangeMode(true);
 }
 
 size_t ConnectionImpl::Read()
@@ -426,12 +422,10 @@ size_t ConnectionImpl::Read()
 	int bytesRead = read(m_endpoint, &m_readBuf[0], MAX_BUF_SIZE);
 	if (bytesRead < 0)
 	{
-		// Try to read once again.
-		if (errno == EAGAIN) return false;
+		// Nothing to read yet.
+		if (errno == EAGAIN) return bytesRead;
 		else throw SystemException(errno);
 	}
-
-	SwitchTo(readPending);
 
 	return bytesRead;
 }
@@ -445,14 +439,12 @@ size_t ConnectionImpl::Write(const std::string& data)
 	int bytesWritten = write(m_endpoint, &m_writeBuf, dataSize);
 	if (bytesWritten < 0) throw SystemException(errno);
 
-	SwitchTo(writePending);
-
 	return bytesWritten;
 }
 
 std::string ConnectionImpl::GetInputData()
 {
-	assert(m_curState == readPending);
+	assert(m_dataExchange);
 
 	// Copy input data until the \0 symbol occurred.
 	auto endPos = std::find(std::begin(m_readBuf), std::end(m_readBuf), 0);
@@ -465,29 +457,29 @@ std::string ConnectionImpl::GetInputData()
 
 void ConnectionImpl::Complete(IConnection* connection)
 {
-	bool dataExchange = (m_curState == readPending) || (m_curState == writePending);
-	assert(dataExchange);
+	assert(m_dataExchange);
 
-	size_t dataSize = (m_callbacks[m_curState])(connection);
-	if (!dataSize)
-	{
-		// In this case a disconnect operation has been done thus
-		// we shall not do anything more.
-		return; 
-	}
+	size_t dataSize = m_dataExchangeCallback(connection);
+	if (!dataSize) return;
 
 	// After IO operation processing only part of data zeroed out.
-	// A size of this part is the same as length of data just written.
-	Buffer_t& buf = (m_curState == readPending) ? m_readBuf : m_writeBuf;
-	auto endPos = std::begin(buf) + dataSize;
-	std::fill(std::begin(buf), endPos, 0);
+	// A size of this part is the same as length of data portin just processed.
+	boost::function<void(Buffer_t&, size_t)> ClearBuffer =
+	[](Buffer_t& buf, size_t dataSize)
+	{
+		auto endPos = std::begin(buf) + dataSize;
+		std::fill(std::begin(buf), endPos, 0);
+	};
+
+	ClearBuffer(m_readBuf, dataSize);
+	ClearBuffer(m_writeBuf, dataSize);
 }
 
 void ConnectionImpl::Reset()
 {
 	close(m_endpoint);
 	m_endpoint = 0;
-	SwitchTo(initial);
+	SetDataExchangeMode(false);
 }
 
 #endif
