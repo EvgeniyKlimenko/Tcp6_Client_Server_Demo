@@ -10,19 +10,21 @@ using TerminationCallback_t = boost::function<void(void)>;
 
 class LinuxTerminationLogic final
 {
+    static LinuxTerminationLogic* s_self;
     TerminationCallback_t m_callback;
 
-    static void SignalCallback(int sig, siginfo_t* info, void* param)
+    static void SignalCallback(int sig, siginfo_t* info, void*)
     {
-        LinuxTerminationLogic* handler = static_cast<LinuxTerminationLogic*>(param);
         std::cerr << "Termination callback for signal " << sig << ", process ID: " << info->si_pid << ", user ID: " << info->si_uid << "." << std::endl;
-        handler->m_callback();
+        s_self->m_callback();
     }
 
 public:
     LinuxTerminationLogic(TerminationCallback_t&& callback)
     : m_callback(callback)
     {
+        LinuxTerminationLogic::s_self = this;
+
         struct sigaction sa;
 
         memset(&sa, 0, sizeof(sa));

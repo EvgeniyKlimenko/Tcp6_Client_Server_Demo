@@ -152,6 +152,7 @@ void IoManager::Run()
 			if (events[i].data.fd == m_exiters[reader])
 			{
 				// Time to finish.
+				std::cout << "Thread " << pthread_self() <<  " is exiting." << std::endl;
 				return;
 			}
 

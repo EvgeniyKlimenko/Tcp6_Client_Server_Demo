@@ -233,6 +233,7 @@ size_t LinuxServer::OnDataExchangeComplete(IConnection* connection)
     {
         // Remote side disconnected - reset connection instance to be reused some later.
         connection->Disconnect();
+        m_cnMgr.Release(connection);
         return 0;
     }
 
