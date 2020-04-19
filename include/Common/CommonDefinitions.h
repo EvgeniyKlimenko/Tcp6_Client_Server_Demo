@@ -8,6 +8,7 @@
 #include <sys/epoll.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/eventfd.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <signal.h>
@@ -65,6 +66,7 @@ extern char* program_invocation_short_name;
 #include <boost/array.hpp>
 #include <boost/unordered_map.hpp>
 #include <boost/unordered_set.hpp>
+#include <boost/atomic.hpp>
 
 #define USE_NATIVE
 

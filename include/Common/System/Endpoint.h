@@ -251,7 +251,7 @@ struct IEndpoint
 	virtual ~IEndpoint() = default;
 
 	virtual int Get() = 0;
-	virtual void Complete() = 0;
+	virtual bool Complete() = 0;
 };
 
 struct IConnection : IEndpoint
@@ -357,9 +357,9 @@ public:
 		return m_endpoint;
 	}
 
-	void Complete(IConnection* connection)
+	bool Complete(IConnection* connection)
 	{
-		Self().Complete(connection);
+		return Self().Complete(connection);
 	}
 
 	void StartAsyncIo(IEndpoint* endpoint)
@@ -391,7 +391,7 @@ public:
 		StopAsyncIoCallback_t&& stopAsyncIoCallback);
     ~AcceptorImpl();
 
-    void Complete();
+    bool Complete();
 
 	bool Accept(IConnection* connection);
 	std::string GetPeerInfo();
@@ -411,7 +411,7 @@ public:
 
 	~ConnectionImpl() = default;
 
-	void Complete(IConnection* connection);
+	bool Complete(IConnection* connection);
 
 	void Set(int fd);
 	size_t Read();
@@ -443,7 +443,7 @@ public:
 
 	virtual ~Acceptor() { m_impl.StopAsyncIo(this); }
 
-	void Complete() override { m_impl.Complete(); }
+	bool Complete() override { return m_impl.Complete(); }
 	bool AcceptAsync(IConnection* connection) override
 	{ 
 		bool res = Base_t::AcceptAsync(connection);
@@ -467,7 +467,7 @@ public:
 
 	virtual ~Connection() { Disconnect(); }
 
-	void Complete() override { m_impl.Complete(this); }
+	bool Complete() override { return m_impl.Complete(this); }
 	void Disconnect() override
 	{
 		m_impl.StopAsyncIo(this);

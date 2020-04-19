@@ -338,7 +338,7 @@ AcceptorImpl::~AcceptorImpl()
 		freeaddrinfo(m_addrInfo);
 }
 
-void AcceptorImpl::Complete()
+bool AcceptorImpl::Complete()
 {
 	// This callback triggded only when a new connection accepted.
 	// In this case a callback from the server called.
@@ -346,6 +346,7 @@ void AcceptorImpl::Complete()
 	// by the whole server, not an acceptor only. Thereby only the acceptor
 	// is able to track accept operation completion.
 	m_acceptCallback(m_newConnection);
+	return true;
 }
 
 bool AcceptorImpl::Accept(IConnection* connection)
@@ -455,12 +456,12 @@ std::string ConnectionImpl::GetInputData()
 	return data;
 }
 
-void ConnectionImpl::Complete(IConnection* connection)
+bool ConnectionImpl::Complete(IConnection* connection)
 {
 	assert(m_dataExchange);
 
 	size_t dataSize = m_dataExchangeCallback(connection);
-	if (!dataSize) return;
+	if (!dataSize) return true;
 
 	// After IO operation processing only part of data zeroed out.
 	// A size of this part is the same as length of data portin just processed.
@@ -473,6 +474,8 @@ void ConnectionImpl::Complete(IConnection* connection)
 
 	ClearBuffer(m_readBuf, dataSize);
 	ClearBuffer(m_writeBuf, dataSize);
+
+	return true;
 }
 
 void ConnectionImpl::Reset()

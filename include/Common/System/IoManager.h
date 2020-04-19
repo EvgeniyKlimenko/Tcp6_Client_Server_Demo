@@ -32,6 +32,20 @@ private:
 
 class IoManager final
 {
+	// Exiting eventfd wrapped into endpoint.
+	class Exiter : public IEndpoint
+	{
+		int m_fd;
+	public:
+		Exiter();
+		virtual ~Exiter() { close(m_fd); }
+
+		int Get() override { return m_fd; }
+		bool Complete() override { Signal(); return false; }
+
+		void Signal(bool first = false);
+	};
+
 	// Use this wrapper class to facilitate adding/removing epoll events. 
 	class EventWrapper
 	{
@@ -40,7 +54,6 @@ class IoManager final
 		EventWrapper() : m_fd(0) {}
 		void Set(int fd) { m_fd = fd; }
 		void DoOp(int opcode, uint32_t events, IEndpoint* endpoint);
-		void DoOp(int opcode, uint32_t events, int fd, void* context = nullptr);
 	};
 public:
 	// Create new epoll.
@@ -58,11 +71,10 @@ public:
 	void Run();
 
 private:
-	enum ExitEnds {reader, writer};
 	static const size_t MAX_ENDPOINTS = 0xffff;
-	size_t m_threadCount;
+	boost::atomic<size_t> m_threadCount;
 	int m_fd;
-	int m_exiters[2];
+	Exiter m_exiter;
 	EventWrapper m_ewr;
 };
 

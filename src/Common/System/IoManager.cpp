@@ -67,18 +67,37 @@ void CIoManager::Run()
 
 #elif defined(__linux__)
 
-void IoManager::EventWrapper::DoOp(int opcode, uint32_t events, IEndpoint* endpoint)
+IoManager::Exiter::Exiter()
 {
-	DoOp(opcode,events, endpoint->Get(), endpoint);
+	// Creating eventfd to signal epoll at exit to be woken up from waiting.
+	m_fd = eventfd(0, EFD_NONBLOCK);
+	if(m_fd < 0)
+		throw SystemException(errno);
 }
 
-void IoManager::EventWrapper::DoOp(int opcode, uint32_t events, int fd, void* context)
+void IoManager::Exiter::Signal(bool first)
+{
+	eventfd_t val = 1;
+	if (!first)
+	{
+		// Reading data from exiter.
+		
+		if (eventfd_read(m_fd, &val) < 0)
+			throw SystemException(errno);
+	}
+
+	// Writing data to exiter to wake up next thread.
+	if (eventfd_write(m_fd, val) < 0)
+		throw SystemException(errno);
+}
+
+void IoManager::EventWrapper::DoOp(int opcode, uint32_t events, IEndpoint* endpoint)
 {
 	epoll_event ev;
 	ev.events = events;
-	ev.data.fd = fd;
-	ev.data.ptr = context;
-	if (epoll_ctl(m_fd, opcode, fd, &ev) < 0)
+	ev.data.fd = endpoint->Get();
+	ev.data.ptr = endpoint;
+	if (epoll_ctl(m_fd, opcode, endpoint->Get(), &ev) < 0)
 		throw SystemException(errno);
 }
 
@@ -91,20 +110,14 @@ IoManager::IoManager(size_t threadCount)
 
 	m_ewr.Set(m_fd);
 
-	// Creating pipes to signal epoll at exit to be woken up from waiting.
-	if(pipe2(m_exiters, O_NONBLOCK) < 0)
-		throw SystemException(errno);
-
 	// Bind exit reader with an epoll.
-	m_ewr.DoOp(EPOLL_CTL_ADD, EPOLLET | EPOLLIN, m_exiters[reader]);
+	m_ewr.DoOp(EPOLL_CTL_ADD, EPOLLET | EPOLLIN | EPOLLEXCLUSIVE, &m_exiter);
 }
 
 IoManager::~IoManager()
 {
 	Stop();
-	m_ewr.DoOp(EPOLL_CTL_DEL, EPOLLET | EPOLLIN, m_exiters[reader]);
-	close(m_exiters[writer]);
-	close(m_exiters[reader]);
+	m_ewr.DoOp(EPOLL_CTL_DEL, EPOLLET | EPOLLIN | EPOLLEXCLUSIVE, &m_exiter);
 	close(m_fd);
 }
 
@@ -125,14 +138,17 @@ void IoManager::Unbind(IEndpoint* endpoint)
 
 void IoManager::Stop()
 {
+	size_t expected = 0;
+	if (m_threadCount.compare_exchange_strong(expected, 0, boost::memory_order_relaxed))
+		return;
+
+	// If there are no IO-involved threads just return control.
+	std::cout << "Thread count: " << m_threadCount.load(boost::memory_order_relaxed) << std::endl;
+
 	// Send finish to all threads bound to epoll via exit writer.
 	// Exit reader in turn will be signaled waking up
 	// the thread and than breaking a thread loop.
-	for(size_t i = 0; i < m_threadCount; ++i)
-	{
-		bool exit = true;
-		write(m_exiters[writer], &exit, sizeof(exit));
-	}
+	m_exiter.Signal(true);
 }
 
 void IoManager::Run()
@@ -149,16 +165,14 @@ void IoManager::Run()
 
         for (int i = 0; i < readyCount; ++i)
         {
-			if (events[i].data.fd == m_exiters[reader])
-			{
-				// Time to finish.
-				std::cout << "Thread " << pthread_self() <<  " is exiting." << std::endl;
-				return;
-			}
-
 			// Asynchronous operation occurred on endpoint needed to complete.
 			IEndpoint* e = reinterpret_cast<IEndpoint*>(events[i].data.ptr);
-			e->Complete();
+			if(!e->Complete())
+			{
+				m_threadCount.fetch_sub(1, boost::memory_order_relaxed);
+				std::cout << "Thread " << pthread_self() << " is exiting." << std::endl;
+				return;
+			}
         }
     }
 }
