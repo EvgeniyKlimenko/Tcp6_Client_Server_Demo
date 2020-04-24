@@ -4,7 +4,6 @@ LIB := lib
 SRC	:= src
 INCLUDE	:= include
 SEP := /
-RM :=  rmdir /s /q
 
 COMMON := Common
 CLIENT := Client
@@ -39,6 +38,7 @@ LIB_DIRS := /LIBPATH:$(MSVC_LIBS_PATH) /LIBPATH:$(CRT_LIBS_PATH) /LIBPATH:$(SDK_
 OUT_FILE := /OUT:
 LIB_OUT_FILE := $(OUT_FILE)
 MKDIR := md
+RM :=  rmdir /s /q
 else
 SYSTEM := Linux
 PLATFORM_SEP := $(SEP)
@@ -54,6 +54,7 @@ C_FLAGS := -std=c++14 -Wall -Wextra -g
 OUT_FILE := -o  
 LIB_OUT_FILE :=
 MKDIR := mkdir -p
+RM :=  rm -r
 endif
 
 define create_directories

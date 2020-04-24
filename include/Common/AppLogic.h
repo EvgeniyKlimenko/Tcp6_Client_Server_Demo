@@ -60,6 +60,8 @@ protected:
 	using AppType_ptr = boost::scoped_ptr< AppType >;	\
 	AppType_ptr app(new AppType( __VA_ARGS__ ));		\
     app->Run(); } catch (std::exception& ex) {			\
-	std::cerr << ex.what() << std::endl; }
+	std::cerr << ex.what() << std::endl; }				\
+	catch(...) 											\
+	{ std::cerr << "Unhandled exception." << std::endl; }
 
 #endif // __APP_LOGIC_H__

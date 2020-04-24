@@ -81,7 +81,6 @@ void IoManager::Exiter::Signal(bool first)
 	if (!first)
 	{
 		// Reading data from exiter.
-		
 		if (eventfd_read(m_fd, &val) < 0)
 			throw SystemException(errno);
 	}
@@ -170,7 +169,6 @@ void IoManager::Run()
 			if(!e->Complete())
 			{
 				m_threadCount.fetch_sub(1, boost::memory_order_relaxed);
-				std::cout << "Thread " << pthread_self() << " is exiting." << std::endl;
 				return;
 			}
         }

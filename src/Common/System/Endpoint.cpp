@@ -394,6 +394,16 @@ std::string AcceptorImpl::GetPeerInfo()
 	return peerInfo.str();
 }
 
+void AcceptorImpl::StartAsyncIo(IEndpoint* endpoint)
+{
+	m_startAsyncIoCallback(endpoint);
+}
+
+void AcceptorImpl::StopAsyncIo(IEndpoint* endpoint)
+{
+	m_stopAsyncIoCallback(endpoint);
+}
+
 ConnectionImpl::ConnectionImpl(
 	OperationCallback_t&& dataExchangeCallback,
 	StartAsyncIoCallback_t&& startAsyncIoCallback,
@@ -480,9 +490,16 @@ bool ConnectionImpl::Complete(IConnection* connection)
 
 void ConnectionImpl::Reset()
 {
+	if (IsInitialState()) return;
 	close(m_endpoint);
 	m_endpoint = 0;
 	SetDataExchangeMode(false);
+}
+
+void ConnectionImpl::StopAsyncIo(IEndpoint* endpoint)
+{
+	if (IsInitialState()) return;
+	m_stopAsyncIoCallback(endpoint);
 }
 
 #endif

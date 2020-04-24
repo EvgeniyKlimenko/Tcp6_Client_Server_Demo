@@ -104,9 +104,9 @@ void ThreadPool::Stop()
 {
 	// Clreanup each thread object.
 	std::for_each(std::begin(m_threads), std::end(m_threads),
-		[](pthread_t& th) {pthread_join(th, nullptr);});
+		[](pthread_t& th) { pthread_join(th, nullptr); });
 
-	// Clear since ther's no more active threads.
+	// Clear since there's no more active threads.
 	m_threads.clear();
 }
 

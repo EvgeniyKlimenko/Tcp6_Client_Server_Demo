@@ -129,6 +129,7 @@ public:
             if(ErrorCheck<int>(res).Failed())
             {
                 std::cerr << "Error writing data: " << Exception::GetErrorDescription() << std::endl;
+                break;
             }
             else
             {
@@ -140,6 +141,7 @@ public:
             if (ErrorCheck<int>(res).Failed())
             {
                 std::cerr << "Error reading data: " << Exception::GetErrorDescription() << std::endl;
+                break;
             }
             else
             {

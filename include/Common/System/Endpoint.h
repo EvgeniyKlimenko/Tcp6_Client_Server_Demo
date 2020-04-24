@@ -364,12 +364,12 @@ public:
 
 	void StartAsyncIo(IEndpoint* endpoint)
 	{
-		m_startAsyncIoCallback(endpoint);
+		Self().StartAsyncIo(endpoint);
 	}
 
 	void StopAsyncIo(IEndpoint* endpoint)
 	{
-		m_stopAsyncIoCallback(endpoint);
+		Self().StopAsyncIo(endpoint);
 	}
 };
 
@@ -391,6 +391,9 @@ public:
 		StopAsyncIoCallback_t&& stopAsyncIoCallback);
     ~AcceptorImpl();
 
+	void StartAsyncIo(IEndpoint* endpoint);
+	void StopAsyncIo(IEndpoint* endpoint);
+
     bool Complete();
 
 	bool Accept(IConnection* connection);
@@ -411,6 +414,9 @@ public:
 
 	~ConnectionImpl() = default;
 
+	void StartAsyncIo(IEndpoint*) {}
+	void StopAsyncIo(IEndpoint* endpoint);
+
 	bool Complete(IConnection* connection);
 
 	void Set(int fd);
@@ -420,7 +426,8 @@ public:
 	void Reset();
 
 private:
-	void SetDataExchangeMode(bool dxm) {m_dataExchange = dxm;}
+	void SetDataExchangeMode(bool dxm) { m_dataExchange = dxm; }
+	bool IsInitialState() const { return !m_dataExchange; }
 
 private:
 	bool m_dataExchange;
@@ -498,7 +505,7 @@ template <> class ConnectionContainer<std::list<IConnection*>> final
 {
 	std::list<IConnection*> m_container;
 public:
-	~ConnectionContainer() {Purge();}
+	~ConnectionContainer() { Purge(); }
 
 	bool IsEmpty() const { return m_container.empty(); }
 
@@ -529,7 +536,7 @@ template <> class ConnectionContainer<boost::unordered_set<IConnection*>> final
 {
 	boost::unordered_set<IConnection*> m_container;
 public:
-	~ConnectionContainer() {Purge();}
+	~ConnectionContainer() { Purge(); }
 
 	bool IsEmpty() const { return m_container.empty(); }
 
